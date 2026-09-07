@@ -17,6 +17,13 @@ its seed, no walkthrough can ever be written for this game.
 | **Audio** | Web Audio API: the musical scale, root frequency, key color, wind/ambient notes, footsteps and creature calls are all composed from the seed |
 | **Environment** | Sky color, sun color, fog, cloud count/animation — all seeded |
 
+## Play it live
+
+**https://hannah-cjb.github.io/self-generating-world/**
+
+Deployed from `master` via GitHub Pages. Every push to `master` rebuilds the
+site automatically — game, world, and code edits all redeploy on the next push.
+
 ## Run it
 
 ```bash
