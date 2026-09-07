@@ -80,7 +80,7 @@ export class UI {
     document.getElementById('arcVal').textContent = world.terrain.params.archetype + ' / ' + world.terrain.params.ridge.name;
     document.getElementById('physVal').textContent = world.physicsModel.name + ' (' + world.physicsModel.desc + ')';
     document.getElementById('weapVal').textContent = world.weapon.name;
-    document.getElementById('skyVal').textContent = world.env.skyPreset.name + ' / ' + world.audio.scaleName + ' / ' + world.terrain.params.detail + ' octaves';
+    document.getElementById('skyVal').textContent = world.env.skyPreset.name + ' / ' + world.terrain.params.detail + ' octaves';
     const roster = world.entities.types.map(t => t.name + ' [' + t.nature + (t.ability !== 'none' ? '/' + t.ability : '') + ']').join(' & ');
     document.getElementById('rosterVal').textContent = 'CREATURES: ' + roster;
     this._drawMinimap();
