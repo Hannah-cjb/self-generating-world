@@ -80,7 +80,7 @@ export class WorldEnvironment {
     this.skyBase = new THREE.Color().setHSL(
       this.rng.range(this.skyPreset.hue[0], this.skyPreset.hue[1]),
       this.rng.range(this.skyPreset.sat[0], this.skyPreset.sat[1]),
-      this.rng.range(this.skyPreset.lgt[0], this.skyPreset.lgt[1])
+      this.rng.range(this.skyPreset.lgt[0], this.skyPreset.lgt[1]) * 0.5
     );
     this.sunColor = new THREE.Color().setHSL(this.rng.range(0.02, 0.12), this.rng.range(0.4, 0.7), 0.9);
 
@@ -128,11 +128,11 @@ export class WorldEnvironment {
     scene.background = this.skyBase.clone();
     scene.fog = new THREE.Fog(this.skyBase.clone().lerp(new THREE.Color(0.6, 0.6, 0.6), 0.2), this.visibility * 0.25, this.visibility);
 
-    const hemi = new THREE.HemisphereLight(this.skyBase.clone(), 0x556b2f, this.rng.range(0.45, 0.95));
+    const hemi = new THREE.HemisphereLight(this.skyBase.clone(), 0x3a2618, this.rng.range(0.45, 0.95) * 0.55);
     scene.add(hemi);
     this.hemi = hemi;
 
-    const sun = new THREE.DirectionalLight(this.sunColor, 2.4);
+    const sun = new THREE.DirectionalLight(this.sunColor, 2.4 * 0.4);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.left = -60;

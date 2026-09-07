@@ -108,6 +108,15 @@ export class World {
     this.projectiles = [];
     this.time = 0;
     this.kills = 0;
+    this.huntTarget = null;
+    this.huntKills = 0;
+    this.huntGoal = 5 + Math.floor(tuningRng.range(0, 4));
+    this.portal = null;
+    this.portalActive = false;
+    this.won = false;
+    this.lootCaches = [];
+    this._spawnLoot(tuningRng);
+    this._spawnHuntTarget();
 
     if (this.ui) this.ui.setWorldInfo(this);
   }
@@ -321,8 +330,10 @@ export class World {
 
   shootProjectile() {
     if (this.shotCd > 0) return;
+    if (!this.player.hasAmmo()) return;
     const w = this.weapon;
     this.shotCd = w.cd;
+    this.player.useAmmo(Math.max(1, Math.floor(w.dmg * 0.7)));
     const origin = this.player.camera.position.clone();
     const forward = this.player.getForwardRay();
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
@@ -405,6 +416,170 @@ export class World {
 
   startAudio() {
     if (this.audio) this.audio.ensure().start();
+  }
+
+  _spawnLoot(rng) {
+    const n = rng.intRange(12, 25);
+    for (let i = 0; i < n; i++) {
+      const x = rng.range(-this.terrain.half * 0.8, this.terrain.half * 0.8);
+      const z = rng.range(-this.terrain.half * 0.8, this.terrain.half * 0.8);
+      const h = this.terrain.height(x, z);
+      if (h < 0.5) continue;
+      const isAmmo = rng.chance(0.6);
+      const color = isAmmo ? 0xffdd44 : 0x44ff66;
+      const glow = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.45, 0),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 })
+      );
+      glow.position.set(x, h + 0.8, z);
+      this.engine.scene.add(glow);
+      this.lootCaches.push({
+        mesh: glow,
+        x, z, h,
+        type: isAmmo ? 'ammo' : 'health',
+        value: isAmmo ? rng.intRange(6, 14) : rng.intRange(15, 30),
+        collected: false
+      });
+    }
+  }
+
+  _spawnHuntTarget() {
+    const rng = new SeededRandom(this.seed ^ 0xdeadbeef);
+    const types = this.entities.types.filter(t => t.hp >= 3);
+    const type = types.length > 0 ? rng.pick(types) : rng.pick(this.entities.types);
+    const x = rng.range(-this.terrain.half * 0.6, this.terrain.half * 0.6);
+    const z = rng.range(-this.terrain.half * 0.6, this.terrain.half * 0.6);
+    const h = this.terrain.height(x, z);
+    const pos = new THREE.Vector3(x, Math.max(h + 2, 4), z);
+    const enhanced = { ...type, name: 'HUNT: ' + type.name, hp: type.hp * 2, dmg: type.dmg + 1, aggroRange: 30 };
+    const ent = this.entities.spawnOne(enhanced, pos);
+    ent._isHuntTarget = true;
+    const aura = new THREE.Mesh(
+      new THREE.SphereGeometry(1.8, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.25, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    ent.group.add(aura);
+    ent._aura = aura;
+    this.huntTarget = ent;
+  }
+
+  _spawnPortal() {
+    const rng = new SeededRandom(this.seed ^ 0x1337cafe);
+    let px = 0, pz = 0, ph = 0;
+    for (let i = 0; i < 40; i++) {
+      px = rng.range(-this.terrain.half * 0.7, this.terrain.half * 0.7);
+      pz = rng.range(-this.terrain.half * 0.7, this.terrain.half * 0.7);
+      ph = this.terrain.height(px, pz);
+      if (ph > 1 && this.player.body.position.distanceTo(new THREE.Vector3(px, ph, pz)) > 20) break;
+    }
+    const portal = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(2.2, 0.3, 12, 24),
+      new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = Math.PI / 2;
+    portal.add(ring);
+    const glow = new THREE.Mesh(
+      new THREE.CircleGeometry(2, 24),
+      new THREE.MeshBasicMaterial({ color: 0xaaddff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+    );
+    glow.rotation.x = -Math.PI / 2;
+    portal.add(glow);
+    const light = new THREE.PointLight(0x88ccff, 3, 30);
+    portal.add(light);
+    portal.position.set(px, ph + 1.5, pz);
+    this.engine.scene.add(portal);
+    this.portal = portal;
+    this.portalActive = true;
+  }
+
+  update(dt, elapsed) {
+    this.time += dt;
+    this.shotCd -= dt;
+    this.player.update(dt);
+
+    const camPos = this.player.camera.position;
+    for (const proj of [...this.projectiles]) {
+      if (proj.homing) {
+        let best = null, bd = Infinity;
+        for (const ent of this.entities.entities) {
+          const d = ent.body.position.distanceTo(proj.mesh.position);
+          if (d < bd) { bd = d; best = ent; }
+        }
+        if (best) {
+          const desired = best.body.position.clone().sub(proj.mesh.position).normalize();
+          proj.vel.lerp(desired.multiplyScalar(proj.vel.length()), 0.06 * dt * 60);
+        }
+      }
+      proj.mesh.position.add(proj.vel.clone().multiplyScalar(dt));
+      proj.life -= dt;
+
+      const ground = this.heightFn(proj.mesh.position.x, proj.mesh.position.z);
+      if (proj.life <= 0 || proj.mesh.position.y <= ground) {
+        this.engine.scene.remove(proj.mesh);
+        this.projectiles.splice(this.projectiles.indexOf(proj), 1);
+        continue;
+      }
+
+      let hitEntity = null;
+      for (const ent of this.entities.entities) {
+        if (ent.body.position.distanceTo(proj.mesh.position) < ent.body.radius + proj.size + 0.2) {
+          hitEntity = ent;
+          break;
+        }
+      }
+      if (hitEntity) {
+        this.engine.scene.remove(proj.mesh);
+        this.projectiles.splice(this.projectiles.indexOf(proj), 1);
+        if (hitEntity.takeDamage(proj.dmg)) {
+          this.kills++;
+          if (this.ui) this.ui.onKill(this.kills);
+          if (hitEntity._isHuntTarget) {
+            this.huntTarget = null;
+            this.huntKills++;
+            if (this.huntKills >= this.huntGoal && !this.portalActive) {
+              this._spawnPortal();
+              if (this.ui) this.ui.showMessage('PORTAL OPEN — ESCAPE!');
+              if (this.audio) this.audio.playPortalOpen();
+            }
+          }
+        }
+      }
+    }
+
+    for (const loot of this.lootCaches) {
+      if (loot.collected) continue;
+      const dx = this.player.body.position.x - loot.x;
+      const dz = this.player.body.position.z - loot.z;
+      if (dx * dx + dz * dz < 3.5) {
+        loot.collected = true;
+        this.engine.scene.remove(loot.mesh);
+        if (loot.type === 'ammo') this.player.collectAmmo(loot.value);
+        else this.player.collectHealth(loot.value);
+        if (this.ui) this.ui.showMessage((loot.type === 'ammo' ? '+' : '+') + loot.value + ' ' + loot.type.toUpperCase());
+      }
+    }
+
+    if (this.portalActive && this.portal) {
+      const pp = this.portal.position;
+      const dx = this.player.body.position.x - pp.x;
+      const dz = this.player.body.position.z - pp.z;
+      if (dx * dx + dz * dz < 4) {
+        this.won = true;
+        if (this.ui) this.ui.showVictory(this.kills, this.time);
+      }
+    }
+
+    this.entities.update(dt, this.player.body, elapsed, this.env.orbit.dayFrac);
+    this.env.update(dt, elapsed, camPos);
+
+    this._dungeonTimer = (this._dungeonTimer || 0) + dt;
+    if (this.audio && this.player.hp > 0 && this.player.hp < 30 && this._dungeonTimer > 0.85) {
+      this._dungeonTimer = 0;
+      this.audio.playHeartbeat();
+    }
+
+    if (this.ui) this.ui.updateHud(this.player, this);
   }
 
   dispose() {

@@ -33,6 +33,27 @@ export class PlayerController {
     this.hp = this.maxHp;
     this.hitFlash = 0;
     this.invuln = 0;
+
+    this.maxAmmo = 60;
+    this.ammo = 40;
+  }
+
+  hasAmmo() {
+    return this.ammo > 0;
+  }
+
+  useAmmo(amount = 1) {
+    if (this.ammo <= 0) return false;
+    this.ammo = Math.max(0, this.ammo - amount);
+    return true;
+  }
+
+  collectAmmo(amount) {
+    this.ammo = Math.min(this.maxAmmo, this.ammo + amount);
+  }
+
+  collectHealth(amount) {
+    this.hp = Math.min(this.maxHp, this.hp + amount);
   }
 
   takeDamage(dmg) {
@@ -48,6 +69,7 @@ export class PlayerController {
     this.body.position.copy(this.spawnPoint);
     this.body.velocity.set(0, 0, 0);
     this.hp = this.maxHp;
+    this.ammo = Math.max(15, Math.floor(this.ammo * 0.5));
   }
 
   update(dt) {

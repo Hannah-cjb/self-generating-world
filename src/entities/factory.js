@@ -315,6 +315,11 @@ class Entity {
     this.wanderHome = pos.clone();
     this.age = 0;
     this.group = null;
+    this._stuckTimer = 0;
+    this._lastStuckPos = pos.clone();
+    this._unstuckCooldown = 0;
+    this._pathAttempt = 0;
+    this._hopRequest = 0;
   }
 
   buildMesh() {
@@ -555,6 +560,8 @@ class Entity {
 
     this._applyMovement(dt, time, terrainHeight, targetSpeed);
 
+    this._updateStuck(dt, terrainHeight, targetSpeed);
+
     this.group.position.copy(this.body.position);
 
     if (this.body.onGround || type.relax === 'floaty' || type.relax === 'glide') {
@@ -570,36 +577,151 @@ class Entity {
     }
   }
 
+  _updateStuck(dt, terrainHeight, targetSpeed) {
+    this._unstuckCooldown = Math.max(0, this._unstuckCooldown - dt);
+    if (this._unstuckCooldown > 0) return;
+    if (this.body.position.y < terrainHeight(this.body.position.x, this.body.position.z) - this.type.size * 2) {
+      this.body.position.y = terrainHeight(this.body.position.x, this.body.position.z) + this.type.size;
+      this._lastStuckPos.copy(this.body.position);
+      this._unstuckCooldown = 1.0;
+      return;
+    }
+
+    const moved = this.body.position.distanceTo(this._lastStuckPos);
+    this._stuckTimer += dt;
+
+    if (this._stuckTimer > 1.5 && moved < 0.8) {
+      this._pathAttempt++;
+      const here = terrainHeight(this.body.position.x, this.body.position.z);
+      const esc = this._findEscapePoint(terrainHeight, this._pathAttempt >= 3 ? 20 : 4, this._pathAttempt >= 3);
+      if (esc) {
+        this.body.position.x = esc.x;
+        this.body.position.z = esc.z;
+        this.body.position.y = Math.max(terrainHeight(esc.x, esc.z) + this.type.size, this.body.position.y + this.type.size);
+        this.body.velocity.y = 5;
+      } else {
+        const a = this.factory.rng.range(0, Math.PI * 2);
+        this.body.position.x += Math.cos(a) * 3;
+        this.body.position.z += Math.sin(a) * 3;
+        this.body.position.y = Math.max(here + this.type.size, this.body.position.y);
+        this.body.velocity.y = 5;
+      }
+      this._pathAttempt = Math.min(this._pathAttempt, 8);
+      this._stuckTimer = 0;
+      this._lastStuckPos.copy(this.body.position);
+      this._unstuckCooldown = this._pathAttempt >= 3 ? 2.2 : 1.2;
+      return;
+    }
+
+    if (this._stuckTimer > 0.4 && moved > 1.0) {
+      this._stuckTimer = 0;
+      this._pathAttempt = 0;
+    }
+    if (this._stuckTimer > 0.4 && moved <= 1.0) {
+      this._lastStuckPos.copy(this.body.position);
+    }
+  }
+
+  _findEscapePoint(terrainHeight, radius, pickHighest) {
+    const here = terrainHeight(this.body.position.x, this.body.position.z);
+    const wantAbove = pickHighest ? here + 1.0 : here;
+    let best = null, bestScore = -Infinity;
+    const ang = this.factory.rng.range(0, Math.PI * 2);
+    for (let k = 0; k < 12; k++) {
+      const a = ang + (k / 12) * Math.PI * 2;
+      const x = this.body.position.x + Math.cos(a) * radius;
+      const z = this.body.position.z + Math.sin(a) * radius;
+      const g = terrainHeight(x, z);
+      if (g < -1.0) continue;
+      const slope = this._terrainSlope(x, z, terrainHeight);
+      const above = g - here;
+      const score = (g > wantAbove ? 2 : 0) - slope * 1.5 - Math.abs(above) * 0.3;
+      if (score > bestScore) { bestScore = score; best = { x, z }; }
+    }
+    if (best) return best;
+    for (let k = 0; k < 8; k++) {
+      const a = ang + (k / 8) * Math.PI * 2;
+      const x = this.body.position.x + Math.cos(a) * (radius * 0.6);
+      const z = this.body.position.z + Math.sin(a) * (radius * 0.6);
+      const g = terrainHeight(x, z);
+      if (g < -1.0) continue;
+      best = best || { x, z };
+    }
+    return best;
+  }
+
   _applyMovement(dt, time, terrainHeight, targetSpeed) {
     const type = this.type;
     const rng = this.factory.rng;
     const gait = type.gait;
 
+    const aheadX = this.body.position.x + this.targetDir.x * 2;
+    const aheadZ = this.body.position.z + this.targetDir.z * 2;
+    const slopeAhead = this._terrainSlope(aheadX, aheadZ, terrainHeight);
+    const atWaterEdge = terrainHeight(this.body.position.x, this.body.position.z) < 0.3;
+
+    let moveDir = this.targetDir.clone();
+    const hereGround = terrainHeight(this.body.position.x, this.body.position.z);
+    const climbDesired = terrainHeight(aheadX, aheadZ) - hereGround;
+
+    if (hereGround < -1.0) {
+      const uhl = terrainHeight(this.body.position.x - 3, this.body.position.z);
+      const uhr = terrainHeight(this.body.position.x + 3, this.body.position.z);
+      const uhu = terrainHeight(this.body.position.x, this.body.position.z - 3);
+      const uhd = terrainHeight(this.body.position.x, this.body.position.z + 3);
+      const uphill = new THREE.Vector3(uhl - uhr, 0, uhu - uhd);
+      if (uphill.lengthSq() > 0.5) {
+        uphill.normalize().multiplyScalar(0.65).add(moveDir.clone().multiplyScalar(0.5)).normalize();
+        moveDir.copy(uphill);
+      }
+    }
+
+    if (climbDesired > this.type.size * 1.5 && targetSpeed > 0) {
+      const leftX = this.body.position.x + (-this.targetDir.z) * 2;
+      const leftZ = this.body.position.z + (this.targetDir.x) * 2;
+      const rightX = this.body.position.x + (this.targetDir.z) * 2;
+      const rightZ = this.body.position.z + (-this.targetDir.x) * 2;
+      const lc = terrainHeight(leftX, leftZ) - hereGround;
+      const rc = terrainHeight(rightX, rightZ) - hereGround;
+      if (lc < rc && lc < this.type.size * 1.5) moveDir.set(-this.targetDir.z, 0, this.targetDir.x);
+      else if (rc < this.type.size * 1.5) moveDir.set(this.targetDir.z, 0, -this.targetDir.x);
+      else if (this.body.onGround) {
+        this._hopRequest = Math.max(this._hopRequest || 0, 6);
+      }
+    }
+
+    if (atWaterEdge && targetSpeed > 0) {
+      const inWater = terrainHeight(aheadX, aheadZ) < 0.3;
+      if (inWater) {
+        moveDir.set(-this.targetDir.x, 0, -this.targetDir.z);
+      }
+    }
+
     if (type.relax === 'floaty') {
       this.body.velocity.set(0, 0, 0);
-      this.body.position.x += this.targetDir.x * targetSpeed * 0.4 * dt;
-      this.body.position.z += this.targetDir.z * targetSpeed * 0.4 * dt;
+      this.body.position.x += moveDir.x * targetSpeed * 0.4 * dt;
+      this.body.position.z += moveDir.z * targetSpeed * 0.4 * dt;
       this.body.position.y += Math.sin(time * 1.8 + this.age) * dt * 0.8;
       const ground = terrainHeight(this.body.position.x, this.body.position.z);
       this.body.position.y = Math.max(this.body.position.y, ground + type.size * 0.5);
     } else if (type.relax === 'glide') {
       this.body.velocity.set(0, 0, 0);
-      this.body.position.x += this.targetDir.x * targetSpeed * 0.45 * dt;
-      this.body.position.z += this.targetDir.z * targetSpeed * 0.45 * dt;
+      this.body.position.x += moveDir.x * targetSpeed * 0.45 * dt;
+      this.body.position.z += moveDir.z * targetSpeed * 0.45 * dt;
       const ground = terrainHeight(this.body.position.x, this.body.position.z);
       this.body.position.y = Math.max(this.body.position.y, ground + type.size * 1.1);
       this.body.position.y += Math.sin(time + this.age) * dt * 0.4;
     } else if (type.relax === 'blink') {
       this.body.velocity.set(0, 0, 0);
       if (rng.chance(0.6 * dt)) {
-        this.body.position.x += this.targetDir.x * targetSpeed * 4;
-        this.body.position.z += this.targetDir.z * targetSpeed * 4;
+        this.body.position.x += moveDir.x * targetSpeed * 4;
+        this.body.position.z += moveDir.z * targetSpeed * 4;
       }
       const ground = terrainHeight(this.body.position.x, this.body.position.z);
       this.body.position.y = Math.max(this.body.position.y, ground + type.size * 0.6);
     } else {
-      let vx = this.targetDir.x * targetSpeed;
-      let vz = this.targetDir.z * targetSpeed;
+      let vx = moveDir.x * targetSpeed;
+      let vz = moveDir.z * targetSpeed;
 
       if (type.relax === 'wave') {
         vz += Math.sin(time * 2 + this.age) * 1.2;
@@ -618,7 +740,10 @@ class Entity {
     }
 
     let extraV = 0;
-    if ((type.relax === 'hoppy' || type.relax === 'skitter') && this.body.onGround) {
+    if (this._hopRequest > 0 && this.body.onGround) {
+      extraV = this._hopRequest;
+      this._hopRequest = 0;
+    } else if ((type.relax === 'hoppy' || type.relax === 'skitter') && this.body.onGround) {
       if (rng.chance(Math.min(1, 0.1 * dt * 60 * (type.size < 1 ? 1.6 : 1)))) {
         extraV = rng.range(2.5, 6) * gait.hop;
       }
@@ -633,6 +758,25 @@ class Entity {
         this.body.velocity.y = rng.range(2, 4) * gait.hop;
       }
     }
+
+    const groundHere = terrainHeight(this.body.position.x, this.body.position.z);
+    if (this.body.position.y < groundHere + type.size * 0.3) {
+      this.body.position.y = groundHere + type.size * 0.6;
+      this.body.velocity.y = Math.max(this.body.velocity.y, 3);
+      this.body.onGround = true;
+    }
+  }
+
+  _terrainSlope(x, z, terrainHeight) {
+    const d = 1.5;
+    const h = terrainHeight(x, z);
+    const hL = terrainHeight(x - d, z);
+    const hR = terrainHeight(x + d, z);
+    const hU = terrainHeight(x, z - d);
+    const hD = terrainHeight(x, z + d);
+    const dx = (hR - hL) / (2 * d);
+    const dz = (hD - hU) / (2 * d);
+    return Math.sqrt(dx * dx + dz * dz);
   }
 
   _abilityWeapons() {

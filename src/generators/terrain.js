@@ -209,6 +209,15 @@ export class TerrainGenerator {
     return h;
   }
 
+  heightGradient(x, z) {
+    const d = 1.0;
+    const hL = this.height(x - d, z);
+    const hR = this.height(x + d, z);
+    const hU = this.height(x, z - d);
+    const hD = this.height(x, z + d);
+    return new THREE.Vector3(hL - hR, 2 * d, hU - hD).normalize();
+  }
+
   buildGeometry() {
     const seg = this.seg;
     const size = this.size;

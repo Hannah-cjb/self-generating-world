@@ -27,6 +27,13 @@ export class UI {
       #hpfill { height: 100%; width: 100%; background: linear-gradient(90deg, #66e05a, #b8f04f); transition: width 0.2s, background 0.2s; }
       #weatherTag { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(255,255,255,0.7); text-shadow: 0 1px 2px rgba(0,0,0,0.8); letter-spacing: 2px; text-transform: uppercase; }
       #regenConfirm { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); font-family: monospace; font-size: 16px; color: #ffd966; background: rgba(20,20,28,0.88); border: 1px solid rgba(255,217,102,0.5); padding: 14px 22px; border-radius: 8px; z-index: 20; text-shadow: 0 1px 3px rgba(0,0,0,0.9); display: none; text-align: center; box-shadow: 0 0 24px rgba(255,217,102,0.25); }
+      #ammoBar { position: absolute; bottom: 30px; right: 16px; font-size: 14px; font-family: monospace; color: #ffdd44; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+      #huntInfo { position: absolute; top: 12px; right: 12px; font-size: 12px; font-family: monospace; background: rgba(20,0,0,0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,50,50,0.4); color: #ff6644; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+      #victoryScreen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.88); z-index: 50; color: #88ccff; font-family: monospace; }
+      #victoryScreen h1 { font-size: 36px; color: #88ccff; text-shadow: 0 0 24px rgba(136,204,255,0.5); letter-spacing: 6px; margin-bottom: 16px; }
+      #victoryScreen p { color: #9fb4c7; font-size: 14px; line-height: 2; }
+      #lootMsg { position: fixed; left: 50%; top: 35%; transform: translateX(-50%); font-family: monospace; font-size: 18px; color: #aaffaa; background: rgba(0,0,0,0.7); padding: 10px 24px; border-radius: 8px; z-index: 22; text-shadow: 0 1px 4px rgba(0,0,0,0.9); display: none; pointer-events: none; }
+      #bloodVignette { position: fixed; inset: 0; pointer-events: none; z-index: 15; background: radial-gradient(ellipse at center, transparent 55%, rgba(180,0,0,0.0) 100%); transition: background 0.15s; }
     `;
     document.head.appendChild(style);
 
@@ -48,10 +55,19 @@ export class UI {
       <div id="minimap"><canvas id="mm" width="80" height="80"></canvas></div>
       <div id="weatherTag"><span id="weathVal">clear</span></div>
       <div id="hpbar"><div id="hpfill"></div></div>
+      <div id="ammoBar">AMMO: <span id="ammoVal">40</span>/60</div>
+      <div id="huntInfo">HUNT: <span id="huntVal">0</span>/5</div>
       <div id="regenConfirm">Press <b>R</b> again to create a new world</div>
+      <div id="lootMsg"></div>
+      <div id="bloodVignette"></div>
+      <div id="victoryScreen">
+        <h1>ESCAPED</h1>
+        <p id="victoryStats"></p>
+        <p style="margin-top:20px; color:#666;">Press R to generate a new world</p>
+      </div>
       <div id="controls">
         Click to lock mouse &nbsp;·&nbsp; WASD move &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint<br>
-        LMB shoot &nbsp;·&nbsp; R R regenerate world
+                LMB shoot (limited ammo) &nbsp;·&nbsp; R R regenerate world
       </div>
     `;
     document.body.appendChild(this.root);
@@ -80,6 +96,21 @@ export class UI {
     if (el) el.style.display = 'none';
   }
 
+  showMessage(text) {
+    const el = document.getElementById('lootMsg');
+    el.textContent = text;
+    el.style.display = 'block';
+    clearTimeout(this._lootTimer);
+    this._lootTimer = setTimeout(() => { el.style.display = 'none'; }, 1800);
+  }
+
+  showVictory(kills, time) {
+    const el = document.getElementById('victoryScreen');
+    document.getElementById('victoryStats').textContent =
+      'You survived ' + Math.floor(time).toFixed(0) + ' seconds and felled ' + kills + ' creatures.';
+    el.style.display = 'flex';
+  }
+
   onKill(kills) {
     document.getElementById('killsVal').textContent = kills;
   }
@@ -88,6 +119,20 @@ export class UI {
     const p = player.body.position;
     document.getElementById('posVal').textContent = `${p.x.toFixed(0)}, ${p.y.toFixed(0)}, ${p.z.toFixed(0)}`;
     document.getElementById('fpVal').textContent = player.engine.renderer.info.render.fps;
+    document.getElementById('ammoVal').textContent = player.ammo;
+    const huntEl = document.getElementById('huntVal');
+    if (huntEl.textContent !== String(world.huntKills)) huntEl.textContent = world.huntKills;
+    const huntLabel = document.getElementById('huntInfo');
+    if (world.portalActive && huntLabel.style.display !== 'none') huntLabel.style.display = 'none';
+    else if (!world.portalActive && huntLabel.style.display === 'none') huntLabel.style.display = 'block';
+
+    const vig = document.getElementById('bloodVignette');
+    const hpPct = (player.hp / player.maxHp) * 100;
+    vig.style.background = hpPct < 30
+      ? 'radial-gradient(ellipse at center, transparent 45%, rgba(180,0,0,' + ((1 - hpPct / 30) * 0.5).toFixed(2) + ') 100%)'
+      : 'radial-gradient(ellipse at center, transparent 55%, rgba(180,0,0,0) 100%)';
+    if (player.hitFlash > 0.3) vig.style.background = 'radial-gradient(ellipse at center, transparent 30%, rgba(220,0,0,0.7) 100%)';
+
     if (world.entities.entities.length !== this._lastEntCount) {
       this._lastEntCount = world.entities.entities.length;
       document.getElementById('entVal').textContent = world.entities.entities.length;
@@ -97,7 +142,6 @@ export class UI {
     if (wtEl.textContent !== wt) wtEl.textContent = wt;
 
     const hp = document.getElementById('hpfill');
-    const hpPct = (player.hp / player.maxHp) * 100;
     hp.style.width = hpPct + '%';
     hp.style.background = hpPct > 50 ? 'linear-gradient(90deg, #66e05a, #b8f04f)' : hpPct > 25 ? 'linear-gradient(90deg, #f0c040, #ffe07a)' : 'linear-gradient(90deg, #e05a5a, #ff8888)';
     if (player.hitFlash > 0.3) {
@@ -170,12 +214,12 @@ export function createStartScreen(onStart) {
   `;
   const generateSeed = () => Math.floor(Math.random() * 0x7fffffff).toString(36);
   el.innerHTML = `
-    <h1 style="font-size: 42px; letter-spacing: 4px; margin-bottom: 4px; color: #ffd966; text-shadow: 0 0 24px rgba(255,217,102,0.4);">SELF-GENERATING WORLD</h1>
+    <h1 style="font-size: 42px; letter-spacing: 4px; margin-bottom: 4px; color: #b8483a; text-shadow: 0 0 24px rgba(184,72,58,0.4);">SELF-GENERATING HORROR</h1>
     <p style="color: #9fb4c7; font-size: 13px; max-width: 560px; line-height: 1.7; margin-bottom: 28px;">
-      A 3D world that builds itself from a seed: terrain, biomes, weather, physics,
-      weapons, creature behaviors and even the soundtrack are generated at runtime —
-      with thousands of possible combinations, no two worlds are alike, so no
-      walkthrough can ever exist.
+      An endless dark alternate-world is generated from your seed. Ammunition is
+      scarce. A glowing red prey stalks the land — hunt it down to open a portal,
+      then reach it to escape. No two worlds are alike, and no walkthrough can
+      ever exist.
     </p>
     <div style="display: flex; gap: 10px;">
       <input id="seedInput" type="text" placeholder="Enter a world seed…" spellcheck="false"

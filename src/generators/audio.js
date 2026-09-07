@@ -189,6 +189,46 @@ export class AudioEngine {
     src.start();
   }
 
+  playHeartbeat() {
+    if (!this.ctx) return;
+    const thump = (when) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      const t0 = this.ctx.currentTime + when;
+      osc.frequency.setValueAtTime(55, t0);
+      osc.frequency.exponentialRampToValueAtTime(30, t0 + 0.15);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.35, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+      osc.connect(g).connect(this.sfxGain);
+      osc.start(t0);
+      osc.stop(t0 + 0.2);
+    };
+    thump(0);
+    thump(0.18);
+  }
+
+  playPortalOpen() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(60, t0);
+    osc.frequency.exponentialRampToValueAtTime(900, t0 + 1.2);
+    const g = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(400, t0);
+    filter.frequency.exponentialRampToValueAtTime(1600, t0 + 1.2);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.3);
+    osc.connect(filter).connect(g).connect(this.sfxGain);
+    osc.start(t0);
+    osc.stop(t0 + 1.4);
+  }
+
   startAmbient() {
     if (!this.ctx || !this.ambientGain) return;
     const duration = this.rng.range(3, this.ambientDensity);
