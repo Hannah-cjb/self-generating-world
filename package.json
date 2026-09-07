@@ -1,0 +1,14 @@
+{
+  "name": "self-generating-world",
+  "version": "1.0.0",
+  "description": "A 3D game that creates itself - procedural terrain, textures, physics, audio, and entity behavior generated from a seed. No two worlds are alike.",
+  "type": "module",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "serve": "npx serve ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.160.0"
+  }
+}

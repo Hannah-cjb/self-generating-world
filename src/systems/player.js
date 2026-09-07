@@ -1,0 +1,103 @@
+import * as THREE from 'three';
+import { RigidBody } from '../systems/physics.js';
+
+export class PlayerController {
+  constructor(engine, physics, spawnPoint, audio) {
+    this.engine = engine;
+    this.physics = physics;
+    this.audio = audio;
+    this.camera = engine.camera;
+    this.body = new RigidBody(spawnPoint.clone(), 0.4, 1.7, 1);
+    physics.registerBody(this.body);
+
+    const headGeo = new THREE.SphereGeometry(0.4, 16, 16);
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xdd8855, roughness: 0.6 });
+    this.head = new THREE.Mesh(headGeo, headMat);
+    this.head.position.copy(spawnPoint).y += 1.5;
+    engine.scene.add(this.head);
+
+    this.speed = 6.0;
+    this.sprintMult = 1.7;
+    this.jumpForce = 8.5;
+    this.sensitivity = 0.0022;
+    this.pitch = 0;
+    this.yaw = 0;
+    this.stepAccum = 0;
+    this.attackCooldown = 0;
+    this.input = engine.inputState;
+  }
+
+  update(dt) {
+    const input = this.input;
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0));
+
+    if (input.mouse.locked) {
+      this.yaw -= input.mouse.dx * this.sensitivity;
+      this.pitch -= input.mouse.dy * this.sensitivity;
+      this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
+    }
+
+    let move = new THREE.Vector3();
+    if (input.keys['KeyW']) move.add(forward);
+    if (input.keys['KeyS']) move.sub(forward);
+    if (input.keys['KeyA']) move.sub(right);
+    if (input.keys['KeyD']) move.add(right);
+
+    move.y = 0;
+    if (move.lengthSq() > 0) move.normalize();
+
+    const sprinting = input.sprint && move.lengthSq() > 0;
+    const spd = this.speed * (sprinting ? this.sprintMult : 1);
+
+    this.body.velocity.x = move.x * spd;
+    this.body.velocity.z = move.z * spd;
+
+    if (input.jump && this.body.onGround) {
+      this.body.velocity.y = this.jumpForce;
+      this.body.onGround = false;
+      if (this.audio) this.audio.playJump();
+    }
+
+    this.physics.update(dt);
+
+    this.camera.position.copy(this.body.position);
+    this.camera.position.y += 1.6;
+
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.set(this.pitch, this.yaw, 0);
+
+    const headPos = this.body.position.clone();
+    headPos.y += 1.5;
+    this.head.position.lerp(headPos, 0.3);
+
+    if (this.audio && this.body.onGround && move.lengthSq() > 0) {
+      this.stepAccum += dt * (sprinting ? 3.0 : 2.0);
+      if (this.stepAccum > 1) {
+        this.stepAccum = 0;
+        this.audio.playFootstep(sprinting);
+      }
+    }
+
+    this.attackCooldown -= dt;
+  }
+
+  attack() {
+    if (this.attackCooldown > 0) return null;
+    this.attackCooldown = 0.4;
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    const hit = this.physics.raycastTerrain(this.camera.position, dir, 4);
+    return { dir, origin: this.camera.position.clone(), hit };
+  }
+
+  getForwardRay() {
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    return dir;
+  }
+}
