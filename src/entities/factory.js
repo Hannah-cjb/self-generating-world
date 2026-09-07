@@ -320,6 +320,11 @@ class Entity {
     this._unstuckCooldown = 0;
     this._pathAttempt = 0;
     this._hopRequest = 0;
+    this._moveBlend = 0;
+    this._facing = 0;
+    this.anim = null;
+    this._escFlurry = 0;
+    this._escFlurryT = 0;
   }
 
   buildMesh() {
@@ -339,15 +344,30 @@ class Entity {
       emissiveIntensity: rngC.range(0.05, 0.75)
     });
     this.mainMesh = new THREE.Mesh(geo, mat);
-    this.group.add(this.mainMesh);
+    this.mainMesh.castShadow = true;
 
+    this.bodyPivot = new THREE.Group();
+    this.group.add(this.bodyPivot);
+    this.bodyPivot.add(this.mainMesh);
+
+    this.eyes = [];
     for (let i = 0; i < type.eyeCount; i++) {
+      const pivot = new THREE.Group();
       const eye = new THREE.Mesh(
         new THREE.SphereGeometry(s * 0.12, 8, 8),
         new THREE.MeshBasicMaterial({ color: type.accent })
       );
-      eye.position.set(rngC.range(-s * 0.3, s * 0.3), s * (rngC.range(0.1, 0.35)), s * 0.45);
-      this.group.add(eye);
+      eye.castShadow = true;
+      const pupil = new THREE.Mesh(
+        new THREE.SphereGeometry(s * 0.055, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0x000000 })
+      );
+      pivot.position.set(rngC.range(-s * 0.3, s * 0.3), s * (rngC.range(0.1, 0.35)), s * 0.45);
+      pivot.add(eye);
+      pupil.position.z = s * 0.09;
+      pivot.add(pupil);
+      this.bodyPivot.add(pivot);
+      this.eyes.push(pivot);
     }
 
     if (type.horns) {
@@ -356,9 +376,10 @@ class Entity {
           new THREE.ConeGeometry(s * 0.08, s * 0.45, 5),
           new THREE.MeshStandardMaterial({ color: type.accent, emissive: type.accent, emissiveIntensity: 0.3 })
         );
+        horn.castShadow = true;
         horn.position.set(hx * s * 0.35, s * 0.55, 0);
         horn.rotation.z = -hx * 0.5;
-        this.group.add(horn);
+        this.bodyPivot.add(horn);
       }
     }
     if (type.spikes) {
@@ -366,17 +387,185 @@ class Entity {
         new THREE.ConeGeometry(s * 0.06, s * 0.4, 5),
         new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.6 })
       );
+      spike.castShadow = true;
       spike.position.y = s * 0.6;
-      this.group.add(spike);
+      this.bodyPivot.add(spike);
     }
+
+    this.tailPivot = null;
     if (type.tail) {
+      this.tailPivot = new THREE.Group();
+      this.tailPivot.position.set(0, s * 0.1, -s * 0.5);
       const tail = new THREE.Mesh(
         new THREE.CylinderGeometry(0.03 * s, 0.1 * s, s * 0.7, 5),
         new THREE.MeshStandardMaterial({ color: type.accent })
       );
-      tail.position.set(0, s * 0.1, -s * 0.5);
+      tail.castShadow = true;
       tail.rotation.x = 0.9;
-      this.group.add(tail);
+      this.tailPivot.add(tail);
+      this.bodyPivot.add(this.tailPivot);
+    }
+
+    this._buildAnimRig(s, rngC);
+  }
+
+  _buildAnimRig(s, rngC) {
+    const type = this.type;
+    const phase = rngC.range(0, Math.PI * 2);
+    const bobF = rngC.range(1.7, 3.4);
+    const bobA = rngC.range(0.015, 0.05);
+    const brF = rngC.range(0.8, 1.6);
+    const brA = rngC.range(0.02, 0.08);
+    const swF = rngC.range(1.2, 3.0);
+    const swA = rngC.range(0.1, 0.3);
+    const turn = rngC.range(3.0, 9.0);
+    const stride = rngC.range(1.4, 2.6);
+    const glow = rngC.range(0.8, 1.3);
+    const eyeF = rngC.range(0.5, 1.4);
+    const tilt = rngC.range(0.4, 1.0);
+    const wingF = rngC.range(6, 12);
+
+    const air = type.relax === 'floaty' || type.relax === 'glide';
+    const shimmer = type.relax === 'blink';
+
+    this.anim = {
+      phase, bobF, bobA, brF, brA, swF, swA, turn, stride, glow, eyeF, tilt, wingF,
+      air, shimmer, legs: [], wings: [], legCount: 0, legBaseY: 0
+    };
+
+    const legMat = new THREE.MeshStandardMaterial({
+      color: type.color.clone().multiplyScalar(0.58),
+      roughness: 0.75
+    });
+
+    if (air) {
+      this.anim.air = true;
+      for (const side of [-1, 1]) {
+        const pivot = new THREE.Group();
+        const wing = new THREE.Mesh(new THREE.BoxGeometry(s * 0.75, s * 0.03, s * 0.5), legMat);
+        wing.castShadow = true;
+        pivot.position.set(side * s * 0.22, s * 0.08, -s * 0.08);
+        wing.position.set(side * s * 0.52, 0, 0);
+        pivot.add(wing);
+        this.bodyPivot.add(pivot);
+        this.anim.wings.push({ pivot, flip: side });
+      }
+      this.anim.legCount = 0;
+    } else if (!shimmer) {
+      let count = 4;
+      if (type.relax === 'skitter' || type.relax === 'jitter') count = 6;
+      else if (type.relax === 'hoppy' || type.relax === 'bounce') count = 2;
+      this.anim.legCount = count;
+      const legLen = s * 0.24;
+      const hipY = -s * 0.34;
+      this.anim.legBaseY = hipY;
+      const baseSpots = [];
+      if (count === 2) {
+        baseSpots.push([-s * 0.28, hipY, s * 0.1], [s * 0.28, hipY, s * 0.1]);
+      } else if (count === 6) {
+        for (let row = -1; row <= 1; row++) {
+          baseSpots.push([-s * 0.34, hipY, row * s * 0.36], [s * 0.34, hipY, row * s * 0.36]);
+        }
+      } else {
+        baseSpots.push(
+          [-s * 0.3, hipY, -s * 0.28], [s * 0.3, hipY, -s * 0.28],
+          [-s * 0.3, hipY, s * 0.28], [s * 0.3, hipY, s * 0.28]
+        );
+      }
+      baseSpots.forEach((spot, i) => {
+        const pivot = new THREE.Group();
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.045, s * 0.055, legLen, 5), legMat);
+        leg.castShadow = true;
+        leg.position.y = -legLen * 0.5;
+        pivot.position.set(spot[0], spot[1], spot[2]);
+        pivot.add(leg);
+        this.bodyPivot.add(pivot);
+        this.anim.legs.push({ pivot, phase: phase + ((i + Math.floor(i / 2)) % 2) * Math.PI });
+      });
+    }
+
+    this.anim.baseGlow = this.mainMesh.material.emissiveIntensity;
+    this.anim.eyeRange = type.aggroRange * 1.4;
+  }
+
+  _animate(dt, time, player) {
+    const type = this.type;
+    const an = this.anim;
+    if (!an) return;
+
+    let yawTarget = this._facing;
+    if (this._moveBlend > 0.05) yawTarget = Math.atan2(this.targetDir.x, this.targetDir.z);
+    let dYaw = yawTarget - this._facing;
+    while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+    while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+    this._facing += dYaw * Math.min(1, dt * an.turn);
+    if (!(this._facing === this._facing)) this._facing = 0;
+
+    const p = this.body.position;
+    const th = this.factory.terrainHeight;
+    let pitch = 0, roll = 0;
+    if (th) {
+      const dxTer = (th(p.x + 1.2, p.z) - th(p.x - 1.2, p.z)) / 2.4;
+      const dzTer = (th(p.x, p.z + 1.2) - th(p.x, p.z - 1.2)) / 2.4;
+      const fwdX = Math.sin(this._facing), fwdZ = Math.cos(this._facing);
+      pitch = THREE.MathUtils.clamp((dxTer * fwdX + dzTer * fwdZ) * an.tilt, -0.45, 0.45);
+      roll = THREE.MathUtils.clamp((dxTer * fwdZ - dzTer * fwdX) * -an.tilt, -0.4, 0.4);
+    }
+
+    this.group.rotation.order = 'YXZ';
+    this.group.rotation.set(pitch, this._facing, roll);
+
+    const breathe = 1 + Math.sin(time * an.brF + an.phase) * an.brA;
+    const bob = Math.sin(time * an.bobF + an.phase * 2) * an.bobA * type.size
+      + (an.air ? Math.sin(time * 2.1 + an.phase) * type.size * 0.14 : 0)
+      + (type.relax === 'sine' ? Math.sin(time * 3.2 + this.age * 2.4) * type.size * 0.12 : 0);
+    const stretch = this._moveBlend * Math.min(0.09, 0.05 + type.size * 0.01);
+    const pose = (this.state === 'attack' || this.state === 'crouch') ? -type.size * 0.12 : 0;
+    this.bodyPivot.scale.set(breathe * (1 + stretch), breathe * (1 - stretch), breathe * (1 + stretch));
+    this.bodyPivot.position.y = bob + pose;
+
+    if (an.legs.length) {
+      const fw = an.stride + this._moveBlend * 2.4;
+      for (const leg of an.legs) {
+        const swing = Math.sin(time * fw * 3 + leg.phase);
+        leg.pivot.rotation.x = swing * 0.55 * this._moveBlend;
+        leg.pivot.rotation.z = Math.sin(time * fw * 1.5 + leg.phase * 0.7) * 0.12 * this._moveBlend;
+        leg.pivot.position.y = an.legBaseY + Math.abs(swing) * 0.05 * this._moveBlend;
+      }
+    }
+
+    if (this.tailPivot) {
+      const sway = Math.sin(time * an.swF + an.phase) * an.swA * (0.35 + this._moveBlend);
+      this.tailPivot.rotation.y = sway;
+      this.tailPivot.rotation.x = Math.sin(time * an.swF * 1.3 + an.phase) * an.swA * 0.4;
+    }
+
+    if (an.wings.length) {
+      const flap = Math.max(0.12, this._moveBlend > 0.05 ? 0.95 : 0.35) * Math.sin(time * an.wingF + an.phase);
+      for (const w of an.wings) {
+        w.pivot.rotation.z = 0.25 + flap * w.flip;
+      }
+    }
+
+    if (this.eyes.length) {
+      const watched = player && player.position.distanceTo(p) < an.eyeRange;
+      const tx = watched ? player.position.x : p.x + Math.sin(time * an.eyeF + an.phase) * 2.2;
+      const tz = watched ? player.position.z : p.z + Math.cos(time * an.eyeF + an.phase) * 2.2;
+      const ty = watched ? player.position.y : p.y;
+      const dx = tx - p.x, dz = tz - p.z;
+      const hor = Math.sqrt(dx * dx + dz * dz) || 1;
+      const localYaw = Math.atan2(dx, dz) - this._facing;
+      const pitchE = Math.atan2(ty - p.y, hor);
+      for (const eye of this.eyes) {
+        eye.rotation.y = THREE.MathUtils.clamp(localYaw * 0.85, -0.6, 0.6);
+        eye.rotation.x = THREE.MathUtils.clamp(-pitchE * 0.6, -0.35, 0.35);
+      }
+    }
+
+    if (an.shimmer) {
+      this.mainMesh.material.emissiveIntensity = an.baseGlow * (0.4 + 0.6 * Math.abs(Math.sin(time * 9 + an.phase)));
+    } else {
+      this.mainMesh.material.emissiveIntensity = an.baseGlow * (0.9 + 0.1 * Math.sin(time * 1.6 + an.phase));
     }
   }
 
@@ -564,13 +753,13 @@ class Entity {
 
     this.group.position.copy(this.body.position);
 
-    if (this.body.onGround || type.relax === 'floaty' || type.relax === 'glide') {
-      const forward3 = new THREE.Vector3(this.targetDir.x || 0.0001, 0, this.targetDir.z);
+    const hSpeed = Math.hypot(this.body.velocity.x, this.body.velocity.z);
+    const speedCap = Math.max(0.6, type.speed);
+    const wantFrac = type.speed > 0 ? Math.min(1.2, Math.abs(targetSpeed) / speedCap) : 0;
+    const frac = Math.max(wantFrac, Math.min(1.2, hSpeed / speedCap));
+    this._moveBlend += (frac - this._moveBlend) * Math.min(1, dt * 5);
 
-      this.group.rotation.y = Math.atan2(forward3.x, forward3.z);
-      const bobAmp = type.relax === 'sine' ? 0.5 : 0.08;
-      this.group.position.y += Math.sin(time * 3.2 + this.age * 2.4) * bobAmp;
-    }
+    this._animate(dt, time, player);
 
     if (this.age % 2 < 0.05 && this.factory.audio && rng.chance(0.3)) {
       this.factory.audio.playSND();
@@ -592,8 +781,12 @@ class Entity {
 
     if (this._stuckTimer > 1.5 && moved < 0.8) {
       this._pathAttempt++;
+      this._escFlurryT += this._stuckTimer;
+      if (this._escFlurryT > 6) { this._escFlurry = 0; this._escFlurryT = 0; }
+      this._escFlurry++;
+      const escalate = this._pathAttempt >= 3 || this._escFlurry >= 2;
       const here = terrainHeight(this.body.position.x, this.body.position.z);
-      const esc = this._findEscapePoint(terrainHeight, this._pathAttempt >= 3 ? 20 : 4, this._pathAttempt >= 3);
+      const esc = this._findEscapePoint(terrainHeight, escalate ? 20 : 4, escalate);
       if (esc) {
         this.body.position.x = esc.x;
         this.body.position.z = esc.z;
@@ -609,7 +802,7 @@ class Entity {
       this._pathAttempt = Math.min(this._pathAttempt, 8);
       this._stuckTimer = 0;
       this._lastStuckPos.copy(this.body.position);
-      this._unstuckCooldown = this._pathAttempt >= 3 ? 2.2 : 1.2;
+      this._unstuckCooldown = escalate ? 2.2 : 1.2;
       return;
     }
 
