@@ -325,6 +325,10 @@ class Entity {
     this.anim = null;
     this._escFlurry = 0;
     this._escFlurryT = 0;
+    this._escFrom = new THREE.Vector3();
+    this._escTo = new THREE.Vector3();
+    this._escT = 0;
+    this._escDur = 0.2;
   }
 
   buildMesh() {
@@ -585,6 +589,9 @@ class Entity {
 
   update(dt, player, time, terrainHeight, physics, dayFrac) {
     this.age += dt;
+    if (this._tickEscape(dt, terrainHeight)) {
+      return;
+    }
     const type = this.type;
     const rng = this.factory.rng;
     this.attackTimer -= dt;
@@ -766,6 +773,21 @@ class Entity {
     }
   }
 
+  _tickEscape(dt, terrainHeight) {
+    if (this._escT <= 0) return false;
+    this._escT -= dt;
+    const k = 1 - Math.max(0, this._escT) / this._escDur;
+    const e = THREE.MathUtils.smoothstep(k, 0, 1);
+    this.body.position.lerpVectors(this._escFrom, this._escTo, e);
+    if (this._escT <= 0) {
+      const g = terrainHeight(this.body.position.x, this.body.position.z);
+      this.body.position.y = g + this.type.size;
+      this.body.velocity.y = 2.5;
+      this._lastStuckPos.copy(this.body.position);
+    }
+    return true;
+  }
+
   _updateStuck(dt, terrainHeight, targetSpeed) {
     this._unstuckCooldown = Math.max(0, this._unstuckCooldown - dt);
     if (this._unstuckCooldown > 0) return;
@@ -779,39 +801,47 @@ class Entity {
     const moved = this.body.position.distanceTo(this._lastStuckPos);
     this._stuckTimer += dt;
 
-    if (this._stuckTimer > 1.5 && moved < 0.8) {
-      this._pathAttempt++;
-      this._escFlurryT += this._stuckTimer;
-      if (this._escFlurryT > 6) { this._escFlurry = 0; this._escFlurryT = 0; }
-      this._escFlurry++;
-      const escalate = this._pathAttempt >= 3 || this._escFlurry >= 2;
-      const here = terrainHeight(this.body.position.x, this.body.position.z);
-      const esc = this._findEscapePoint(terrainHeight, escalate ? 20 : 4, escalate);
-      if (esc) {
-        this.body.position.x = esc.x;
-        this.body.position.z = esc.z;
-        this.body.position.y = Math.max(terrainHeight(esc.x, esc.z) + this.type.size, this.body.position.y + this.type.size);
-        this.body.velocity.y = 5;
-      } else {
-        const a = this.factory.rng.range(0, Math.PI * 2);
-        this.body.position.x += Math.cos(a) * 3;
-        this.body.position.z += Math.sin(a) * 3;
-        this.body.position.y = Math.max(here + this.type.size, this.body.position.y);
-        this.body.velocity.y = 5;
-      }
-      this._pathAttempt = Math.min(this._pathAttempt, 8);
-      this._stuckTimer = 0;
-      this._lastStuckPos.copy(this.body.position);
-      this._unstuckCooldown = escalate ? 2.2 : 1.2;
-      return;
-    }
-
-    if (this._stuckTimer > 0.4 && moved > 1.0) {
+    if (this._stuckTimer > 0.6 && moved > 1.4) {
       this._stuckTimer = 0;
       this._pathAttempt = 0;
-    }
-    if (this._stuckTimer > 0.4 && moved <= 1.0) {
       this._lastStuckPos.copy(this.body.position);
+      return;
+    }
+    if (this._stuckTimer > 0.6 && moved <= 1.4) {
+      this._lastStuckPos.copy(this.body.position);
+    }
+
+    if (this._stuckTimer > 2.8 && moved < 1.0) {
+      this._pathAttempt++;
+      this._escFlurryT += this._stuckTimer;
+      if (this._escFlurryT > 8) { this._escFlurry = 0; this._escFlurryT = 0; }
+      this._escFlurry++;
+      const escalate = this._pathAttempt >= 5 || this._escFlurry >= 3;
+      const here = terrainHeight(this.body.position.x, this.body.position.z);
+      const esc = this._findEscapePoint(terrainHeight, escalate ? 14 : 4, escalate);
+      this._escFrom.copy(this.body.position);
+      if (esc) {
+        this._escTo.set(
+          esc.x,
+          Math.max(terrainHeight(esc.x, esc.z) + this.type.size, here + this.type.size),
+          esc.z
+        );
+      } else {
+        const a = this.factory.rng.range(0, Math.PI * 2);
+        this._escTo.set(
+          this.body.position.x + Math.cos(a) * 3,
+          Math.max(here + this.type.size, this.body.position.y),
+          this.body.position.z + Math.sin(a) * 3
+        );
+      }
+      this._escDur = escalate ? 0.32 : 0.22;
+      this._escT = this._escDur;
+      this.body.velocity.set(0, 2, 0);
+      this._pathAttempt = Math.min(this._pathAttempt, 10);
+      this._stuckTimer = 0;
+      this._lastStuckPos.copy(this._escTo);
+      this._unstuckCooldown = escalate ? 3.0 : 1.6;
+      return;
     }
   }
 
