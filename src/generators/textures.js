@@ -67,6 +67,38 @@ export class TextureFactory {
     });
   }
 
+  blendFrom(colorA, colorB, ops = {}) {
+    const key = 'blend_' + colorA + '_' + colorB + '_' + (ops.blendScale || 1);
+    return this.texture(key, () => {
+      const size = 256;
+      const c = this._canvas(size);
+      const ctx = c.getContext('2d');
+      const img = ctx.createImageData(size, size);
+      const data = img.data;
+      const a = this._rgb(colorA);
+      const b = this._rgb(colorB);
+      const blendFreq = ops.blendScale ?? 0.02;
+      const blendStrength = ops.blendStrength ?? 0.6;
+      const grain = ops.granularity ?? 20;
+      const scale = ops.scale ?? 16;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const m = this.noise.noise2D(x * blendFreq * 8, y * blendFreq * 8) * 0.5 + 0.5;
+          const k = m * blendStrength;
+          const g = (this.rng.next() - 0.5) * grain;
+          const n = this.noise.noise2D(x / scale, y / scale) * 4;
+          const i = (y * size + x) * 4;
+          data[i] = Math.max(0, Math.min(255, a[0] + (b[0] - a[0]) * k + g + n));
+          data[i + 1] = Math.max(0, Math.min(255, a[1] + (b[1] - a[1]) * k + g + n));
+          data[i + 2] = Math.max(0, Math.min(255, a[2] + (b[2] - a[2]) * k + g + n));
+          data[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      return new THREE.CanvasTexture(c);
+    });
+  }
+
   normalFrom(color, strength = 1.0) {
     const key = 'norm_' + color + '_' + strength;
     return this.texture(key, () => {

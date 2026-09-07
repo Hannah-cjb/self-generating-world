@@ -1,11 +1,25 @@
 import * as THREE from 'three';
 
+export const PHYSICS_MODELS = [
+  { name: 'Standard', gravity: 20, drag: 0, jump: 1.0, desc: 'earthly norms' },
+  { name: 'Low Grav', gravity: 10.5, drag: 0, jump: 1.6, desc: 'ethereal leaps' },
+  { name: 'Heavy', gravity: 30, drag: 0, jump: 0.82, desc: 'crushing weight' },
+  { name: 'Moon', gravity: 6, drag: 0, jump: 2.4, desc: 'bounding strides' },
+  { name: 'Slurry', gravity: 22, drag: 7, jump: 0.9, desc: 'thick resistance' },
+  { name: 'Light', gravity: 15, drag: 0, jump: 1.25, desc: 'featherfooted' },
+  { name: 'Titan', gravity: 38, drag: 0, jump: 0.7, desc: 'giant planet pull' },
+  { name: 'Float', gravity: 8, drag: 0, jump: 1.9, desc: 'near weightless' },
+  { name: 'Swift', gravity: 17, drag: 1, jump: 1.1, desc: 'quick and clean' },
+  { name: 'Deep', gravity: 26, drag: 2, jump: 0.92, desc: 'heavy atmosphere' }
+];
+
 export class PhysicsEngine {
-  constructor(terrainGetter, worldSize) {
+  constructor(terrainGetter, worldSize, config = {}) {
     this.terrainGetter = terrainGetter;
     this.worldSize = worldSize;
     this.bodies = [];
-    this.gravity = 20.0;
+    this.gravity = config.gravity !== undefined ? config.gravity : 20;
+    this.drag = config.drag !== undefined ? config.drag : 0;
     this.bounds = worldSize / 2 - 2;
   }
 
@@ -69,6 +83,13 @@ export class PhysicsEngine {
       const friction = body.friction || 0.0;
       body.velocity.x *= (1 - friction * dt);
       body.velocity.z *= (1 - friction * dt);
+    }
+
+    if (this.drag > 0) {
+      const k = Math.max(0, 1 - this.drag * dt);
+      body.velocity.x *= k;
+      body.velocity.z *= k;
+      body.velocity.y *= Math.max(0, 1 - this.drag * 0.4 * dt);
     }
   }
 

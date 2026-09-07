@@ -2,13 +2,15 @@ import * as THREE from 'three';
 import { RigidBody } from '../systems/physics.js';
 
 export class PlayerController {
-  constructor(engine, physics, spawnPoint, audio) {
+  constructor(engine, physics, spawnPoint, audio, tuning = {}) {
     this.engine = engine;
     this.physics = physics;
     this.audio = audio;
+    this.tuning = tuning;
     this.camera = engine.camera;
     this.body = new RigidBody(spawnPoint.clone(), 0.4, 1.7, 1);
     physics.registerBody(this.body);
+    this.spawnPoint = spawnPoint.clone();
 
     const headGeo = new THREE.SphereGeometry(0.4, 16, 16);
     const headMat = new THREE.MeshStandardMaterial({ color: 0xdd8855, roughness: 0.6 });
@@ -16,15 +18,36 @@ export class PlayerController {
     this.head.position.copy(spawnPoint).y += 1.5;
     engine.scene.add(this.head);
 
-    this.speed = 6.0;
-    this.sprintMult = 1.7;
-    this.jumpForce = 8.5;
-    this.sensitivity = 0.0022;
+    this.speed = tuning.speed !== undefined ? tuning.speed : 6.0;
+    this.sprintMult = tuning.sprint !== undefined ? tuning.sprint : 1.7;
+    this.jumpFactor = this.physics.gravity !== undefined ? this.physics.gravity : 20;
+    this.jumpForce = this.jumpFactor * 0.5 * (tuning.jumpMult || 1.0);
+    this.sensitivity = tuning.sensitivity !== undefined ? tuning.sensitivity : 0.0022;
     this.pitch = 0;
     this.yaw = 0;
     this.stepAccum = 0;
     this.attackCooldown = 0;
     this.input = engine.inputState;
+
+    this.maxHp = 100;
+    this.hp = this.maxHp;
+    this.hitFlash = 0;
+    this.invuln = 0;
+  }
+
+  takeDamage(dmg) {
+    if (this.invuln > 0) return;
+    this.hp = Math.max(0, this.hp - dmg);
+    this.hitFlash = 1;
+    this.invuln = 0.5;
+    if (this.audio) this.audio.playAmbientHit();
+    if (this.hp <= 0) this.respawn();
+  }
+
+  respawn() {
+    this.body.position.copy(this.spawnPoint);
+    this.body.velocity.set(0, 0, 0);
+    this.hp = this.maxHp;
   }
 
   update(dt) {
@@ -84,6 +107,8 @@ export class PlayerController {
     }
 
     this.attackCooldown -= dt;
+    this.hitFlash = Math.max(0, this.hitFlash - dt * 2);
+    this.invuln = Math.max(0, this.invuln - dt);
   }
 
   attack() {
