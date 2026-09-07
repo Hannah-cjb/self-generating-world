@@ -283,9 +283,9 @@ export class TerrainGenerator {
       }
 
       const rock = Math.pow(Math.abs(slope) * (n.fbm(x * 0.03 + 40, z * 0.03 + 40, 2) * 0.5 + 0.5), 1.5);
-      const rockK = Math.min(0.65, rock * 2.4);
+      const rockK = Math.min(0.55, rock * 2.2);
       if (rockK > 0.02) {
-        const gr = 0.30 * rockTint, gg = 0.29 * rockTint, gb = 0.27 * rockTint;
+        const gr = 0.34 * rockTint, gg = 0.31 * rockTint, gb = 0.27 * rockTint;
         r = r + (gr - r) * rockK;
         g = g + (gg - g) * rockK;
         b = b + (gb - b) * rockK;
@@ -294,19 +294,6 @@ export class TerrainGenerator {
       const moist = n.fbm(x * 0.02 + 300, z * 0.02 + 300, 3) * 0.5 + 0.5;
       const wet = Math.max(0, (0.55 - t) * moist * 0.22);
       r -= wet; g -= wet * 0.85; b -= wet * 0.7;
-
-      const lu = r * 0.2126 + g * 0.7152 + b * 0.0722;
-      const dark = 0.66;
-      r *= dark; g *= dark; b *= dark;
-      const kd = 0.42;
-      r = lu * dark + (r - lu * dark) * (1 - kd);
-      g = lu * dark + (g - lu * dark) * (1 - kd);
-      b = lu * dark + (b - lu * dark) * (1 - kd);
-
-      const blotch = Math.pow(Math.max(0, n.fbm(x * 0.026 + 111, z * 0.026 + 222, 3) * 0.5 + 0.5), 2.2);
-      const drip = Math.pow(Math.max(0, n.fbm(x * 0.11, z * 0.02 + 89, 3) * 0.5 + 0.5), 4.5);
-      const gr = 1 - (blotch * 0.4 + drip * 0.26);
-      r *= gr; g *= gr; b *= gr;
 
       const jR = n.fbm(x * 0.12, z * 0.12, 2) * 0.015;
       const jG = n.fbm(x * 0.12 + 50, z * 0.12 + 50, 2) * 0.015;

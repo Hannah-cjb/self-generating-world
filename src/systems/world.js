@@ -73,15 +73,15 @@ export class World {
 
     this.terrain = new TerrainGenerator(seed, 240);
     this.textures = new TextureFactory(seed ^ 0x2f6e2b1);
-    const terrNorm = this.textures.normalFrom(0x888888, 0.8);
-    const terrRough = this.textures.roughnessFrom(0.86, 0.3);
+    const terrNorm = this.textures.normalFrom(0x888888, 0.65);
+    const terrRough = this.textures.roughnessFrom(0.82, 0.25);
     const meshMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       normalMap: terrNorm,
       roughnessMap: terrRough,
-      roughness: 0.95,
+      roughness: 0.92,
       metalness: 0.0,
-      map: this.textures.diffuseFrom(0x5f5d55, { variation: 20, granularity: 12, scale: 18, grime: 0.9, desat: 0.55 })
+      map: this.textures.diffuseFrom(0x928c80, { variation: 22, granularity: 12, scale: 18 })
     });
     this.terrainMesh = new THREE.Mesh(this.terrain.buildGeometry(), meshMat);
     this.terrainMesh.receiveShadow = true;
@@ -146,33 +146,31 @@ export class World {
     const rng = new SeededRandom(this.seed ^ 0xabcdef);
     const biomeDef = this.terrain.params.biomeDef;
     const leafBase = this._rgbToHex(biomeDef.veg);
-    const lr = (leafBase >> 16) & 255, lg = (leafBase >> 8) & 255, lb = leafBase & 255;
-    const darkLeaf = ((lr * 0.52) << 16) | ((lg * 0.55) << 8) | (lb * 0.5);
     const leafNorm = this.textures.normalFrom(0x447744, 0.7);
     const barkNorm = this.textures.normalFrom(0x775533, 0.85);
-    const barkRough = this.textures.roughnessFrom(0.92, 0.2);
+    const barkRough = this.textures.roughnessFrom(0.92, 0.15);
     const leafMats = [
-      { c: darkLeaf, v: 14 },
-      { c: (darkLeaf & 0xfefefe) >> 1, v: 12 },
-      { c: (darkLeaf | 0x0f0f0f) >>> 0, v: 16 }
-    ].map(s => new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(s.c, { variation: s.v, granularity: 22, scale: 14, grime: 0.3, desat: 0.5 }), normalMap: leafNorm, roughness: 0.9, side: THREE.DoubleSide }));
+      { c: leafBase, v: 20 },
+      { c: (leafBase & 0xfefefe) >> 1, v: 18 },
+      { c: (leafBase | 0x0f0f0f) >>> 0, v: 24 }
+    ].map(s => new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(s.c, { variation: s.v, granularity: 22, scale: 14 }), normalMap: leafNorm, roughness: 0.85, side: THREE.DoubleSide }));
 
     const barkMats = [
-      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x3c3126, { variation: 22, granularity: 18, scale: 10, grime: 0.55, desat: 0.4 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 0.95 }),
-      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x463a2a, { variation: 18, granularity: 20, scale: 12, grime: 0.5, desat: 0.4 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 0.95 }),
-      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x2a2218, { variation: 30, granularity: 16, scale: 9, grime: 0.75, desat: 0.5 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 1.0 })
+      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x4a3a2a, { variation: 22, granularity: 18, scale: 10 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x57452f, { variation: 18, granularity: 20, scale: 12 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x33261c, { variation: 30, granularity: 16, scale: 9 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 1.0 })
     ];
 
     const crystalMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color().setHSL(rng.range(0.5, 0.85), 0.7, 0.55),
-      emissive: new THREE.Color().setHSL(rng.range(0.5, 0.85), 0.9, 0.45),
-      emissiveIntensity: 1.15, roughness: 0.12, metalness: 0.5
+      color: new THREE.Color().setHSL(rng.range(0.5, 0.85), 0.7, 0.6),
+      emissive: new THREE.Color().setHSL(rng.range(0.5, 0.85), 0.9, 0.4),
+      emissiveIntensity: 0.8, roughness: 0.15, metalness: 0.4
     });
-    const cactusMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x245a2b, { variation: 14, granularity: 10, scale: 16, grime: 0.4, desat: 0.45 }), normalMap: this.textures.normalFrom(0x2e7a32, 0.55), roughness: 0.85 });
+    const cactusMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x2e7a32, { variation: 16, granularity: 10, scale: 16 }), normalMap: this.textures.normalFrom(0x2e7a32, 0.55), roughness: 0.8 });
     const shroomCapMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rng.range(0.0, 0.22), rng.range(0.4, 0.9), rng.range(0.3, 0.5)), emissiveIntensity: 0.1, roughness: 0.6 });
-    const shroomStemMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0xcfba92, { variation: 24, granularity: 30, scale: 8, grime: 0.35 }), roughness: 0.9 });
+    const shroomStemMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0xd9c9a3, { variation: 24, granularity: 30, scale: 8 }), roughness: 0.9 });
     const coralMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rng.range(0.4, 0.65), rng.range(0.4, 0.8), rng.range(0.4, 0.6)), roughness: 0.7 });
-    const iceMat = new THREE.MeshStandardMaterial({ color: 0xdfeaff, emissive: 0x9fc4ff, emissiveIntensity: 0.2, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.85 });
+    const iceMat = new THREE.MeshStandardMaterial({ color: 0xdfeaff, emissive: 0x9fc4ff, emissiveIntensity: 0.15, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.85 });
 
     const flora = biomeDef.flora;
     const target = Math.max(6, Math.floor(biomeDef.density * 1000) + Math.floor(rng.range(-30, 30)));
@@ -314,7 +312,7 @@ export class World {
 
   _placeRocks() {
     const rng = new SeededRandom(this.seed ^ 0x1234fedc);
-    const rockMat = new THREE.MeshStandardMaterial({ map: this.textures.blendFrom(0x46443f, 0x232221, { blendStrength: 0.55, granularity: 30, scale: 20, grime: 0.9 }), normalMap: this.textures.normalFrom(0x888888, 0.85), roughnessMap: this.textures.roughnessFrom(0.92, 0.12), roughness: 0.95 });
+    const rockMat = new THREE.MeshStandardMaterial({ map: this.textures.blendFrom(0x7d7a72, 0x3a3a34, { blendStrength: 0.5, granularity: 30, scale: 20 }), normalMap: this.textures.normalFrom(0x888888, 0.8), roughnessMap: this.textures.roughnessFrom(0.9, 0.12), roughness: 0.95 });
     const n = rng.intRange(20, 150);
     for (let i = 0; i < n; i++) {
       const x = rng.range(-this.terrain.half + 4, this.terrain.half - 4);
