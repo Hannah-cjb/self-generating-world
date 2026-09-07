@@ -8,6 +8,7 @@ export class Engine {
     this.running = false;
     this.systems = [];
     this.onUpdate = null;
+    this.composer = null;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -69,6 +70,7 @@ export class Engine {
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(w, h);
+      if (this.composer) this.composer.setSize(w, h);
     });
   }
 
@@ -93,7 +95,11 @@ export class Engine {
       if (sys.update) sys.update(dt, elapsed);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.composer) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
     this.inputState.mouse.dx = 0;
     this.inputState.mouse.dy = 0;
     this.inputState.jump = false;

@@ -72,7 +72,17 @@ export class World {
     this.shotCd = 0;
 
     this.terrain = new TerrainGenerator(seed, 240);
-    const meshMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05 });
+    this.textures = new TextureFactory(seed ^ 0x2f6e2b1);
+    const terrNorm = this.textures.normalFrom(0x888888, 0.65);
+    const terrRough = this.textures.roughnessFrom(0.82, 0.25);
+    const meshMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      normalMap: terrNorm,
+      roughnessMap: terrRough,
+      roughness: 0.92,
+      metalness: 0.0,
+      map: this.textures.diffuseFrom(0x928c80, { variation: 22, granularity: 12, scale: 18 })
+    });
     this.terrainMesh = new THREE.Mesh(this.terrain.buildGeometry(), meshMat);
     this.terrainMesh.receiveShadow = true;
     engine.scene.add(this.terrainMesh);
@@ -91,7 +101,6 @@ export class World {
     this.env.audio = this.audio;
     this.env.build(engine);
 
-    this.textures = new TextureFactory(seed ^ 0x2f6e2b1);
     this._placeFlora();
     this._placeRocks();
 
@@ -137,28 +146,31 @@ export class World {
     const rng = new SeededRandom(this.seed ^ 0xabcdef);
     const biomeDef = this.terrain.params.biomeDef;
     const leafBase = this._rgbToHex(biomeDef.veg);
+    const leafNorm = this.textures.normalFrom(0x447744, 0.7);
+    const barkNorm = this.textures.normalFrom(0x775533, 0.85);
+    const barkRough = this.textures.roughnessFrom(0.92, 0.15);
     const leafMats = [
       { c: leafBase, v: 20 },
       { c: (leafBase & 0xfefefe) >> 1, v: 18 },
       { c: (leafBase | 0x0f0f0f) >>> 0, v: 24 }
-    ].map(s => new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(s.c, { variation: s.v, granularity: 22, scale: 14 }), roughness: 0.8, side: THREE.DoubleSide }));
+    ].map(s => new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(s.c, { variation: s.v, granularity: 22, scale: 14 }), normalMap: leafNorm, roughness: 0.85, side: THREE.DoubleSide }));
 
     const barkMats = [
-      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x4a3a2a, { variation: 22, granularity: 18, scale: 10 }), side: THREE.DoubleSide, roughness: 0.9 }),
-      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x57452f, { variation: 18, granularity: 20, scale: 12 }), side: THREE.DoubleSide, roughness: 0.9 }),
-      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x33261c, { variation: 30, granularity: 16, scale: 9 }), side: THREE.DoubleSide, roughness: 1.0 })
+      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x4a3a2a, { variation: 22, granularity: 18, scale: 10 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x57452f, { variation: 18, granularity: 20, scale: 12 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x33261c, { variation: 30, granularity: 16, scale: 9 }), normalMap: barkNorm, roughnessMap: barkRough, side: THREE.DoubleSide, roughness: 1.0 })
     ];
 
     const crystalMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color().setHSL(rng.range(0.5, 0.85), 0.7, 0.6),
       emissive: new THREE.Color().setHSL(rng.range(0.5, 0.85), 0.9, 0.4),
-      emissiveIntensity: 0.8, roughness: 0.2, metalness: 0.3
+      emissiveIntensity: 0.8, roughness: 0.15, metalness: 0.4
     });
-    const cactusMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x2e7a32, { variation: 16, granularity: 10, scale: 16 }), roughness: 0.7 });
-    const shroomCapMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rng.range(0.0, 0.22), rng.range(0.4, 0.9), rng.range(0.3, 0.5)), emissiveIntensity: 0.1 });
+    const cactusMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0x2e7a32, { variation: 16, granularity: 10, scale: 16 }), normalMap: this.textures.normalFrom(0x2e7a32, 0.55), roughness: 0.8 });
+    const shroomCapMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rng.range(0.0, 0.22), rng.range(0.4, 0.9), rng.range(0.3, 0.5)), emissiveIntensity: 0.1, roughness: 0.6 });
     const shroomStemMat = new THREE.MeshStandardMaterial({ map: this.textures.diffuseFrom(0xd9c9a3, { variation: 24, granularity: 30, scale: 8 }), roughness: 0.9 });
-    const coralMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rng.range(0.4, 0.65), rng.range(0.4, 0.8), rng.range(0.4, 0.6)), roughness: 0.8 });
-    const iceMat = new THREE.MeshStandardMaterial({ color: 0xdfeaff, emissive: 0x9fc4ff, emissiveIntensity: 0.15, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.85 });
+    const coralMat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rng.range(0.4, 0.65), rng.range(0.4, 0.8), rng.range(0.4, 0.6)), roughness: 0.7 });
+    const iceMat = new THREE.MeshStandardMaterial({ color: 0xdfeaff, emissive: 0x9fc4ff, emissiveIntensity: 0.15, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.85 });
 
     const flora = biomeDef.flora;
     const target = Math.max(6, Math.floor(biomeDef.density * 1000) + Math.floor(rng.range(-30, 30)));
@@ -300,7 +312,7 @@ export class World {
 
   _placeRocks() {
     const rng = new SeededRandom(this.seed ^ 0x1234fedc);
-    const rockMat = new THREE.MeshStandardMaterial({ map: this.textures.blendFrom(0x7d7a72, 0x3a3a34, { blendStrength: 0.5, granularity: 30, scale: 20 }), roughness: 0.95 });
+    const rockMat = new THREE.MeshStandardMaterial({ map: this.textures.blendFrom(0x7d7a72, 0x3a3a34, { blendStrength: 0.5, granularity: 30, scale: 20 }), normalMap: this.textures.normalFrom(0x888888, 0.8), roughnessMap: this.textures.roughnessFrom(0.9, 0.12), roughness: 0.95 });
     const n = rng.intRange(20, 150);
     for (let i = 0; i < n; i++) {
       const x = rng.range(-this.terrain.half + 4, this.terrain.half - 4);
@@ -361,57 +373,6 @@ export class World {
       });
     }
     if (this.audio) this.audio.playSND();
-  }
-
-  update(dt, elapsed) {
-    this.time += dt;
-    this.shotCd -= dt;
-    this.player.update(dt);
-
-    const camPos = this.player.camera.position;
-    for (const proj of [...this.projectiles]) {
-      if (proj.homing) {
-        let best = null, bd = Infinity;
-        for (const ent of this.entities.entities) {
-          const d = ent.body.position.distanceTo(proj.mesh.position);
-          if (d < bd) { bd = d; best = ent; }
-        }
-        if (best) {
-          const desired = best.body.position.clone().sub(proj.mesh.position).normalize();
-          proj.vel.lerp(desired.multiplyScalar(proj.vel.length()), 0.06 * dt * 60);
-        }
-      }
-      proj.mesh.position.add(proj.vel.clone().multiplyScalar(dt));
-      proj.life -= dt;
-
-      const ground = this.heightFn(proj.mesh.position.x, proj.mesh.position.z);
-      if (proj.life <= 0 || proj.mesh.position.y <= ground) {
-        this.engine.scene.remove(proj.mesh);
-        this.projectiles.splice(this.projectiles.indexOf(proj), 1);
-        continue;
-      }
-
-      let hitEntity = null;
-      for (const ent of this.entities.entities) {
-        if (ent.body.position.distanceTo(proj.mesh.position) < ent.body.radius + proj.size + 0.2) {
-          hitEntity = ent;
-          break;
-        }
-      }
-      if (hitEntity) {
-        this.engine.scene.remove(proj.mesh);
-        this.projectiles.splice(this.projectiles.indexOf(proj), 1);
-        if (hitEntity.takeDamage(proj.dmg)) {
-          this.kills++;
-          if (this.ui) this.ui.onKill(this.kills);
-        }
-      }
-    }
-
-    this.entities.update(dt, this.player.body, elapsed, this.env.orbit.dayFrac);
-    this.env.update(dt, elapsed, camPos);
-
-    if (this.ui) this.ui.updateHud(this.player, this);
   }
 
   startAudio() {

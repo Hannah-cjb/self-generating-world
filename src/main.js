@@ -1,6 +1,7 @@
 import { Engine } from './core/engine.js';
 import { World } from './systems/world.js';
 import { UI, createStartScreen } from './ui/ui.js';
+import { enablePostFX } from './render/postfx.js';
 
 let engine = null;
 let world = null;
@@ -16,6 +17,7 @@ function buildWorld(seedString) {
   if (!engine) {
     engine = new Engine(document.getElementById('game'));
     engine.start();
+    enablePostFX(engine).catch(() => {});
   }
   if (!ui) {
     ui = new UI();

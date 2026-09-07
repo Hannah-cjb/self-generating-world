@@ -12,12 +12,6 @@ export class PlayerController {
     physics.registerBody(this.body);
     this.spawnPoint = spawnPoint.clone();
 
-    const headGeo = new THREE.SphereGeometry(0.4, 16, 16);
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xdd8855, roughness: 0.6 });
-    this.head = new THREE.Mesh(headGeo, headMat);
-    this.head.position.copy(spawnPoint).y += 1.5;
-    engine.scene.add(this.head);
-
     this.speed = tuning.speed !== undefined ? tuning.speed : 6.0;
     this.sprintMult = tuning.sprint !== undefined ? tuning.sprint : 1.7;
     this.jumpFactor = this.physics.gravity !== undefined ? this.physics.gravity : 20;
@@ -115,10 +109,6 @@ export class PlayerController {
 
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.set(this.pitch, this.yaw, 0);
-
-    const headPos = this.body.position.clone();
-    headPos.y += 1.5;
-    this.head.position.lerp(headPos, 0.3);
 
     if (this.audio && this.body.onGround && move.lengthSq() > 0) {
       this.stepAccum += dt * (sprinting ? 3.0 : 2.0);

@@ -341,7 +341,7 @@ class Entity {
       roughness: rngC.range(0.25, 0.95),
       metalness: rngC.range(0, 0.55),
       emissive: type.accent,
-      emissiveIntensity: rngC.range(0.05, 0.75)
+      emissiveIntensity: rngC.range(0.0, 0.3)
     });
     this.mainMesh = new THREE.Mesh(geo, mat);
     this.mainMesh.castShadow = true;

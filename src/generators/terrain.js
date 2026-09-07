@@ -225,16 +225,30 @@ export class TerrainGenerator {
     geometry.rotateX(-Math.PI / 2);
 
     const positions = geometry.attributes.position;
-    const colors = this._computeColors();
-    const colorAttr = new Float32Array(positions.count * 3);
-
-    for (let i = 0; i < positions.count; i++) {
+    const count = positions.count;
+    const heights = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
       const x = positions.getX(i);
       const z = positions.getZ(i);
       const h = this.height(x, z);
       positions.setY(i, h);
+      heights[i] = h;
+    }
 
-      const col = colors(h, x, z);
+    const colors = this._computeColors();
+    const width = seg + 1;
+    const colorAttr = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const xi = i % width;
+      const zi = Math.floor(i / width);
+      let sX = 0, sZ = 0;
+      if (xi > 0 && xi < width - 1) sX = Math.abs(heights[i + 1] - heights[i - 1]);
+      else if (xi > 0) sX = Math.abs(heights[i] - heights[i - 1]);
+      else sX = Math.abs(heights[i + 1] - heights[i]);
+      if (zi > 0 && zi < seg) sZ = Math.abs(heights[i + width] - heights[i - width]);
+      else if (zi > 0) sZ = Math.abs(heights[i] - heights[i - width]);
+      else sZ = Math.abs(heights[i + width] - heights[i]);
+      const col = colors(heights[i], sX + sZ, positions.getX(i), positions.getZ(i));
       colorAttr[i * 3] = col[0];
       colorAttr[i * 3 + 1] = col[1];
       colorAttr[i * 3 + 2] = col[2];
@@ -251,11 +265,11 @@ export class TerrainGenerator {
     const palette = p.biomeDef;
     const n = this.noise;
     const snowLine = this.rng.range(8, 18);
+    const rockTint = this.rng.range(0.72, 0.95);
 
-    return (h, x, z) => {
+    return (h, slope, x, z) => {
+      const t = Math.max(0, Math.min(1, (h + 8) / (snowLine + 12)));
       let r, g, b;
-      const t = (h + 8) / (snowLine + 12);
-      const j = n.noise2D(x * 0.05, z * 0.05) * 0.06;
       if (t < 0.4) {
         const k = t / 0.4;
         r = palette.low[0] + (palette.high[0] - palette.low[0]) * k;
@@ -267,7 +281,29 @@ export class TerrainGenerator {
         g = palette.high[1] + (palette.snow[1] - palette.high[1]) * k;
         b = palette.high[2] + (palette.snow[2] - palette.high[2]) * k;
       }
-      return [r + j, g + j, b + j];
+
+      const rock = Math.pow(Math.abs(slope) * (n.fbm(x * 0.03 + 40, z * 0.03 + 40, 2) * 0.5 + 0.5), 1.5);
+      const rockK = Math.min(0.55, rock * 2.2);
+      if (rockK > 0.02) {
+        const gr = 0.34 * rockTint, gg = 0.31 * rockTint, gb = 0.27 * rockTint;
+        r = r + (gr - r) * rockK;
+        g = g + (gg - g) * rockK;
+        b = b + (gb - b) * rockK;
+      }
+
+      const moist = n.fbm(x * 0.02 + 300, z * 0.02 + 300, 3) * 0.5 + 0.5;
+      const wet = Math.max(0, (0.55 - t) * moist * 0.22);
+      r -= wet; g -= wet * 0.85; b -= wet * 0.7;
+
+      const jR = n.fbm(x * 0.12, z * 0.12, 2) * 0.015;
+      const jG = n.fbm(x * 0.12 + 50, z * 0.12 + 50, 2) * 0.015;
+      const jB = n.fbm(x * 0.12 + 90, z * 0.12 + 90, 2) * 0.015;
+
+      return [
+        Math.max(0, Math.min(1, r + jR)),
+        Math.max(0, Math.min(1, g + jG)),
+        Math.max(0, Math.min(1, b + jB))
+      ];
     };
   }
 
