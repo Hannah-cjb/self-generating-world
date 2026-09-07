@@ -10,14 +10,14 @@ no two worlds are alike and no walkthrough can ever be written.
 
 | System | How much randomness |
 |---|---|
-| **Terrain** | 20 archetypes (volcano, rift, mesa, fjord, canyons, dunes, spires…) × 5 ridge signatures × 1–18 octaves, with domain-warping, water level, and seeded offsets |
-| **Biomes** | 16 biomes (jungle, swamp, toxic neon, volcanic, crystalline, coral, glacier…) chosen from seeded temperature/humidity; drive ground palette, snowline, and flora |
-| **Physics** | 10 physical models (Low Grav, Moon, Titan, Slurry, Float…) with per-world gravity and drag; per-world player speed and jump tuning |
-| **Weapons** | 10 weapon archetypes (Bolt, Shotgun, Rail, Homing, Burst-V, Thumper…) each firing differently — spread, velocity, damage, cooldown, homing |
-| **Entities** | 12 behaviors (aggressive, guard, stalker, hunter, herd, phantom, galavanter…) × 10 movement styles × 20 body shapes × 12 color families × 10 abilities (charger, spitter, roarer, detonator, summoner…) × procedurally-generated three-part names (30×20×16 ≈ 9600), plus horns/spikes/tails and 1–12 HP |
-| **Music** | 18 scales/modes (Ionian → Prometheus) × random root, tempo, note density, bass, waveform, humanization; SFX waveforms and ambient density all seeded |
+| **Terrain** | 150 archetypes (6 base shapes × 5 carves × 5 modifiers: volcano, rift, canyon, mesa, spires, terraces…) × 15 ridge signatures × 1–20 detail octaves, with domain-warping, water level, and seeded offsets |
+| **Biomes** | 48 biomes (16 bases × 3 variance tiers: jungle, swamp, toxic neon, volcanic, crystalline, coral, glacier…) chosen from seeded temperature/humidity; drive ground palette, snowline, flora, and density |
+| **Physics** | 30 physical models (10 gravities × 3 drag tiers: Asteroid, Moon, Slurry, Titan, Singularity…) with per-world gravity and drag; per-world player speed and jump tuning |
+| **Weapons** | 30 weapons (6 archetypes × 5 grade tiers: Bolt, Burst, Cannon, Rail, Homing, Yellow…) each firing differently — spread, velocity, damage, cooldown, homing |
+| **Entities** | 36 behaviors (12 natures × 3 temperaments: aggressive, guard, stalker, hunter, herd, phantom, galavanter…) × 40 movement/gait styles (10 relax styles × 4 gaits) × 100 body shapes (25 bases × 4 variants) × 36 color families × 36 abilities (12 kinds × 3 strengths: charger, spitter, roarer, detonator, summoner…) × procedurally-generated three-part names (90×60×48 ≈ 259,000), plus horns/spikes/tails and 1–12 HP |
+| **Music** | 54 scales/modes (18 bases × 3 variants: Ionian → Prometheus) × random root, tempo, note density, bass, waveform, humanization; SFX waveforms and ambient density all seeded |
 | **Textures** | Canvas-generated diffuse & two-tone blend maps from seeded noise (bark, leaves, rock, cactus) |
-| **Sky & Weather** | 12 sky presets × 10 rolling weather patterns (rain, storm, snow, blizzard, ash, aurora, emberfall, pollen…) with real particle systems, thunder flashes, and 60–600-second day/night cycles with stars |
+| **Sky & Weather** | 36 sky presets (12 hue sectors × 3 brightness tiers) × 30 rolling weather patterns (10 kinds × 3 intensities: rain, storm, snow, blizzard, ash, aurora, emberfall, pollen…) with real particle systems, thunder flashes, and 60–600-second day/night cycles with stars |
 | **Environment** | Seeded cloud counts/density/wind, sun color, fog visibility 70–420 |
 
 Every number above is pulled deterministically from the world seed — same seed,
@@ -48,7 +48,7 @@ No build step. Three.js is loaded from a CDN import map.
   produces the identical world; unknown seeds produce unknown worlds.
 - **Click** to lock the mouse into first-person look.
 - **WASD** move · **Space** jump · **Shift** sprint · **LMB** shoot ·
-  **R** regenerate a brand new world.
+  **R** asks for confirmation (press **R** a second time) to create a brand new world.
 - The HUD shows your seed, biome, terrain archetype, physics model, weapon,
   sky/music/octaves, current weather, and the full creature roster.
   There is also a health bar, kill counter, and a live minimap.
@@ -67,11 +67,11 @@ index.html                    entry point (import map + canvas)
 src/main.js                   bootstraps the game
 src/core/seed.js              SeededRandom + SimplexNoise (deterministic)
 src/core/engine.js            renderer, camera, input, game loop
-src/generators/terrain.js     20 archetypes + 16 biome palettes
+src/generators/terrain.js     150 archetypes + 48 biome palettes
 src/generators/textures.js    canvas texture factory (diffuse + blend maps)
-src/generators/audio.js       18-scale procedural Web Audio engine
+src/generators/audio.js       54-scale procedural Web Audio engine
 src/entities/factory.js       rolled entity types, behaviors, abilities
-src/systems/physics.js        10 per-world physics models + custom engine
+src/systems/physics.js        30 per-world physics models + custom engine
 src/systems/player.js         first-person controller + health
 src/systems/environment.js    sky presets, weather, particles, day/night
 src/systems/world.js          generation orchestrator + weapon combat

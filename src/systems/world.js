@@ -9,18 +9,48 @@ import { PhysicsEngine, RigidBody } from './physics.js';
 import { PHYSICS_MODELS } from './physics.js';
 import { WorldEnvironment } from './environment.js';
 
-const WEAPONS = [
-  { name: 'Bolt', count: 1, spread: 0.0, speed: 30, dmg: 1, cd: 0.35, size: 0.12, color: 0xffdd66 },
-  { name: 'Scatter', count: 3, spread: 0.09, speed: 24, dmg: 1, cd: 0.5, size: 0.09, color: 0xffcc55 },
-  { name: 'Burst-V', count: 3, spread: 0.035, speed: 32, dmg: 1, cd: 0.28, size: 0.10, color: 0x88ffcc },
-  { name: 'Cannon', count: 1, spread: 0.0, speed: 16, dmg: 3, cd: 1.2, size: 0.30, color: 0xff5533 },
-  { name: 'Rail', count: 1, spread: 0.0, speed: 60, dmg: 2, cd: 0.9, size: 0.05, color: 0xccddff },
-  { name: 'Shotgun', count: 5, spread: 0.16, speed: 22, dmg: 1, cd: 0.9, size: 0.08, color: 0xffaacc },
-  { name: 'Homing', count: 1, spread: 0.0, speed: 18, dmg: 2, cd: 0.8, size: 0.10, color: 0xcc88ff, homing: true },
-  { name: 'Needle', count: 1, spread: 0.0, speed: 44, dmg: 1, cd: 0.18, size: 0.05, color: 0xffe0a0 },
-  { name: 'Fork', count: 2, spread: 0.12, speed: 26, dmg: 1, cd: 0.42, size: 0.09, color: 0x99ddff },
-  { name: 'Thumper', count: 6, spread: 0.2, speed: 18, dmg: 1, cd: 1.1, size: 0.07, color: 0xff9955 }
+const WEAPON_BASES = [
+  { name: 'Bolt', count: 1, spread: 0.0, speed: 30, dmg: 1, cd: 0.35, size: 0.12 },
+  { name: 'Scatter', count: 4, spread: 0.09, speed: 24, dmg: 1, cd: 0.5, size: 0.09 },
+  { name: 'Cannon', count: 1, spread: 0.0, speed: 16, dmg: 3, cd: 1.2, size: 0.30 },
+  { name: 'Rail', count: 1, spread: 0.0, speed: 60, dmg: 2, cd: 0.9, size: 0.05 },
+  { name: 'Burst', count: 3, spread: 0.035, speed: 32, dmg: 1, cd: 0.28, size: 0.10 },
+  { name: 'Homing', count: 1, spread: 0.0, speed: 18, dmg: 2, cd: 0.8, size: 0.10 }
 ];
+
+const WEAPON_TIERS = [
+  { tag: '', dmg: 1, cd: 1.0, size: 1.0, speed: 1.0 },
+  { tag: '-Rapid', dmg: 0.6, cd: 0.55, size: 0.75, speed: 1.15 },
+  { tag: '-Heavy', dmg: 2.0, cd: 1.5, size: 1.4, speed: 0.8 },
+  { tag: '-Swift', dmg: 0.8, cd: 0.7, size: 0.7, speed: 1.3 },
+  { tag: '-Master', dmg: 1.5, cd: 0.8, size: 1.1, speed: 1.05 }
+];
+
+const WEAPON_COLORS = [0xffdd66, 0xffcc55, 0x88ffcc, 0xff5533, 0xccddff, 0xffaacc, 0xcc88ff, 0xffe0a0, 0x99ddff, 0xff9955];
+
+function buildWeapons() {
+  const out = [];
+  for (let b = 0; b < WEAPON_BASES.length; b++) {
+    for (let t = 0; t < WEAPON_TIERS.length; t++) {
+      const base = WEAPON_BASES[b];
+      const tier = WEAPON_TIERS[t];
+      out.push({
+        name: base.name + tier.tag,
+        count: base.count,
+        spread: base.spread,
+        speed: base.speed * tier.speed,
+        dmg: Math.max(0.5, Math.round(base.dmg * tier.dmg * 10) / 10),
+        cd: base.cd * tier.cd,
+        size: base.size * tier.size,
+        color: WEAPON_COLORS[(b * 7 + t * 3) % WEAPON_COLORS.length],
+        homing: base.name === 'Homing'
+      });
+    }
+  }
+  return out;
+}
+
+export const WEAPONS = buildWeapons();
 
 export class World {
   constructor(engine, seedString, ui) {
@@ -96,8 +126,7 @@ export class World {
 
   _placeFlora() {
     const rng = new SeededRandom(this.seed ^ 0xabcdef);
-    const biome = this.terrain.params.biome;
-    const biomeDef = this._getBiomeDef(biome);
+    const biomeDef = this.terrain.params.biomeDef;
     const leafBase = this._rgbToHex(biomeDef.veg);
     const leafMats = [
       { c: leafBase, v: 20 },
@@ -134,28 +163,6 @@ export class World {
       placed++;
       this._spawnFloraItem(flora, x, z, h, rng, leafMats, barkMats, crystalMat, cactusMat, shroomCapMat, shroomStemMat, coralMat, iceMat);
     }
-  }
-
-  _getBiomeDef(biome) {
-    const defs = {
-      desert: { veg: [0.36, 0.5, 0.18], density: 0.06, flora: 'cactus' },
-      steppe: { veg: [0.42, 0.58, 0.28], density: 0.1, flora: 'bush' },
-      plains: { veg: [0.2, 0.42, 0.2], density: 0.16, flora: 'tree' },
-      temperate: { veg: [0.16, 0.34, 0.16], density: 0.3, flora: 'tree' },
-      tundra: { veg: [0.3, 0.42, 0.3], density: 0.07, flora: 'bush' },
-      savanna: { veg: [0.34, 0.46, 0.2], density: 0.14, flora: 'acacia' },
-      jungle: { veg: [0.12, 0.26, 0.12], density: 0.42, flora: 'jungle' },
-      swamp: { veg: [0.24, 0.36, 0.2], density: 0.14, flora: 'swampy' },
-      badlands: { veg: [0.5, 0.38, 0.3], density: 0.05, flora: 'bush' },
-      glacier: { veg: [0.74, 0.84, 0.9], density: 0.02, flora: 'ice' },
-      volcanic: { veg: [0.2, 0.16, 0.14], density: 0.03, flora: 'volcano' },
-      crystalline: { veg: [0.34, 0.28, 0.46], density: 0.24, flora: 'crystal' },
-      mushroom: { veg: [0.44, 0.3, 0.44], density: 0.24, flora: 'shroom' },
-      coral: { veg: [0.4, 0.52, 0.66], density: 0.2, flora: 'coral' },
-      ashfield: { veg: [0.4, 0.38, 0.38], density: 0.1, flora: 'ash' },
-      neon: { veg: [0.16, 0.3, 0.3], density: 0.22, flora: 'crystal' }
-    };
-    return defs[biome] || defs.plains;
   }
 
   _spawnFloraItem(flora, x, z, h, rng, leafMats, barkMats, crystalMat, cactusMat, shroomCapMat, shroomStemMat, coralMat, iceMat) {
@@ -197,7 +204,8 @@ export class World {
         }
         break;
       }
-      case 'bush': {
+      case 'bush':
+      case 'brush': {
         const s = rng.range(0.5, 1.3);
         const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), rng.pick(leafMats));
         bush.position.y = s * 0.6;
@@ -389,7 +397,7 @@ export class World {
       }
     }
 
-    this.entities.update(dt, this.player.body, elapsed, this.env.orbit);
+    this.entities.update(dt, this.player.body, elapsed, this.env.orbit.dayFrac);
     this.env.update(dt, elapsed, camPos);
 
     if (this.ui) this.ui.updateHud(this.player, this);

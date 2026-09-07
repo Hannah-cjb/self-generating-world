@@ -26,6 +26,7 @@ export class UI {
       #hpbar { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: 240px; height: 14px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.35); border-radius: 7px; overflow: hidden; }
       #hpfill { height: 100%; width: 100%; background: linear-gradient(90deg, #66e05a, #b8f04f); transition: width 0.2s, background 0.2s; }
       #weatherTag { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(255,255,255,0.7); text-shadow: 0 1px 2px rgba(0,0,0,0.8); letter-spacing: 2px; text-transform: uppercase; }
+      #regenConfirm { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); font-family: monospace; font-size: 16px; color: #ffd966; background: rgba(20,20,28,0.88); border: 1px solid rgba(255,217,102,0.5); padding: 14px 22px; border-radius: 8px; z-index: 20; text-shadow: 0 1px 3px rgba(0,0,0,0.9); display: none; text-align: center; box-shadow: 0 0 24px rgba(255,217,102,0.25); }
     `;
     document.head.appendChild(style);
 
@@ -47,9 +48,10 @@ export class UI {
       <div id="minimap"><canvas id="mm" width="80" height="80"></canvas></div>
       <div id="weatherTag"><span id="weathVal">clear</span></div>
       <div id="hpbar"><div id="hpfill"></div></div>
+      <div id="regenConfirm">Press <b>R</b> again to create a new world</div>
       <div id="controls">
         Click to lock mouse &nbsp;·&nbsp; WASD move &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint<br>
-        LMB shoot &nbsp;·&nbsp; R regenerate world
+        LMB shoot &nbsp;·&nbsp; R R regenerate world
       </div>
     `;
     document.body.appendChild(this.root);
@@ -63,9 +65,19 @@ export class UI {
     document.getElementById('physVal').textContent = world.physicsModel.name + ' (' + world.physicsModel.desc + ')';
     document.getElementById('weapVal').textContent = world.weapon.name;
     document.getElementById('skyVal').textContent = world.env.skyPreset.name + ' / ' + world.audio.scaleName + ' / ' + world.terrain.params.detail + ' octaves';
-    const roster = world.entities.types.map(t => t.name + ' [' + t.be + ']').join(' & ');
+    const roster = world.entities.types.map(t => t.name + ' [' + t.nature + (t.ability !== 'none' ? '/' + t.ability : '') + ']').join(' & ');
     document.getElementById('rosterVal').textContent = 'CREATURES: ' + roster;
     this._drawMinimap();
+  }
+
+  showRegenConfirm() {
+    const el = document.getElementById('regenConfirm');
+    if (el) el.style.display = 'block';
+  }
+
+  hideRegenConfirm() {
+    const el = document.getElementById('regenConfirm');
+    if (el) el.style.display = 'none';
   }
 
   onKill(kills) {
@@ -80,7 +92,7 @@ export class UI {
       this._lastEntCount = world.entities.entities.length;
       document.getElementById('entVal').textContent = world.entities.entities.length;
     }
-    const wt = world.env.weather ? world.env.weather.id : 'clear';
+    const wt = world.env.weather ? world.env.weather.name : 'Clear Sky';
     const wtEl = document.getElementById('weathVal');
     if (wtEl.textContent !== wt) wtEl.textContent = wt;
 

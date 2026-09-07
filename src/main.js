@@ -6,6 +6,8 @@ let engine = null;
 let world = null;
 let ui = null;
 let startedWorld = false;
+let regenPrompt = false;
+let regenTimer = null;
 
 function buildWorld(seedString) {
   if (world) {
@@ -30,8 +32,23 @@ function buildWorld(seedString) {
   if (!startedWorld) {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyR') {
-        const seed = Math.floor(Math.random() * 0x7fffffff).toString(36);
-        buildWorld(seed);
+        if (regenPrompt) {
+          clearTimeout(regenTimer);
+          regenTimer = null;
+          regenPrompt = false;
+          ui.hideRegenConfirm();
+          const seed = Math.floor(Math.random() * 0x7fffffff).toString(36);
+          buildWorld(seed);
+        } else {
+          regenPrompt = true;
+          ui.showRegenConfirm();
+          clearTimeout(regenTimer);
+          regenTimer = setTimeout(() => {
+            regenPrompt = false;
+            regenTimer = null;
+            ui.hideRegenConfirm();
+          }, 4000);
+        }
       }
     });
   }

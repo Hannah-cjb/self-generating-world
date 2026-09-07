@@ -1,6 +1,6 @@
 import { SeededRandom, SimplexNoise } from '../core/seed.js';
 
-const SCALES = [
+const BASE_SCALES = [
   { name: 'Ionian', notes: [0, 2, 4, 5, 7, 9, 11] },
   { name: 'Dorian', notes: [0, 2, 3, 5, 7, 9, 10] },
   { name: 'Phrygian', notes: [0, 1, 3, 5, 7, 8, 10] },
@@ -20,6 +20,23 @@ const SCALES = [
   { name: 'Aeolian B5', notes: [0, 2, 3, 5, 6, 8, 10] },
   { name: 'Prometheus', notes: [0, 1, 4, 6, 10] }
 ];
+
+function buildScales() {
+  const out = [];
+  const variants = [
+    { tag: '', fn: (s) => s },
+    { tag: '-dropped', fn: (s) => (s.length > 5 ? s.slice(0, -2) : s) },
+    { tag: '-taut', fn: (s) => (s.length > 5 ? s.slice(1) : s) }
+  ];
+  for (const base of BASE_SCALES) {
+    for (const v of variants) {
+      out.push({ name: base.name + v.tag, notes: v.fn(base.notes) });
+    }
+  }
+  return out;
+}
+
+const SCALES = buildScales();
 
 const WAVES = ['sine', 'triangle', 'square', 'sawtooth'];
 

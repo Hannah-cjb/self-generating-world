@@ -1,17 +1,43 @@
 import * as THREE from 'three';
 
-export const PHYSICS_MODELS = [
-  { name: 'Standard', gravity: 20, drag: 0, jump: 1.0, desc: 'earthly norms' },
-  { name: 'Low Grav', gravity: 10.5, drag: 0, jump: 1.6, desc: 'ethereal leaps' },
-  { name: 'Heavy', gravity: 30, drag: 0, jump: 0.82, desc: 'crushing weight' },
-  { name: 'Moon', gravity: 6, drag: 0, jump: 2.4, desc: 'bounding strides' },
-  { name: 'Slurry', gravity: 22, drag: 7, jump: 0.9, desc: 'thick resistance' },
-  { name: 'Light', gravity: 15, drag: 0, jump: 1.25, desc: 'featherfooted' },
-  { name: 'Titan', gravity: 38, drag: 0, jump: 0.7, desc: 'giant planet pull' },
-  { name: 'Float', gravity: 8, drag: 0, jump: 1.9, desc: 'near weightless' },
-  { name: 'Swift', gravity: 17, drag: 1, jump: 1.1, desc: 'quick and clean' },
-  { name: 'Deep', gravity: 26, drag: 2, jump: 0.92, desc: 'heavy atmosphere' }
+const GRAVITY_LEVELS = [
+  { g: 6, base: 'Asteroid' },
+  { g: 9.5, base: 'Moon' },
+  { g: 13, base: 'Light' },
+  { g: 16.5, base: 'Soft' },
+  { g: 20, base: 'Standard' },
+  { g: 24, base: 'Firm' },
+  { g: 29, base: 'Heavy' },
+  { g: 35, base: 'Titan' },
+  { g: 42, base: 'Colossus' },
+  { g: 50, base: 'Singularity' }
 ];
+
+const DRAG_TIERS = [
+  { d: 0, tag: 'Clean' },
+  { d: 2, tag: 'Aery' },
+  { d: 7, tag: 'Slurry' }
+];
+
+export function buildPhysicsModels() {
+  const models = [];
+  const maxG = Math.max(...GRAVITY_LEVELS.map(l => l.g));
+  for (const lv of GRAVITY_LEVELS) {
+    for (const tier of DRAG_TIERS) {
+      const jump = Math.max(0.55, Math.min(2.7, (26 / lv.g) * (tier.d === 0 ? 1 : 1.15)));
+      models.push({
+        name: tier.d === 0 ? lv.base : tier.tag + ' ' + lv.base,
+        gravity: lv.g,
+        drag: tier.d,
+        jump,
+        desc: `${(jump / Math.max(1, lv.g / 20)).toFixed(2)}× hop / ${lv.g.toFixed(0)}g`
+      });
+    }
+  }
+  return models;
+}
+
+export const PHYSICS_MODELS = buildPhysicsModels();
 
 export class PhysicsEngine {
   constructor(terrainGetter, worldSize, config = {}) {
