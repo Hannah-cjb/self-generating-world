@@ -82,7 +82,7 @@ export class TextureFactory {
   }
 
   diffuseFrom(baseColor, ops = {}) {
-    const key = 'diff_' + baseColor + '_' + (ops.variation || 1) + '_' + (ops.scale || 12) + '_' + (ops.granularity || 12);
+    const key = 'diff_' + baseColor + '_' + (ops.variation || 1) + '_' + (ops.scale || 12) + '_' + (ops.granularity || 12) + '_g' + (ops.grime || 0) + '_d' + (ops.desat || 0);
     return this.texture(key, () => {
       const size = 512;
       const c = this._canvas(size);
@@ -93,23 +93,46 @@ export class TextureFactory {
       const variation = ops.variation ?? 18;
       const grain = ops.granularity ?? 12;
       const scale = ops.scale ?? 12;
+      const grime = ops.grime ?? 0;
+      const desat = ops.desat ?? 0;
       const ph = this._phase(key);
       const u0 = (x) => x / size / (48 / scale) + ph.x;
       const v0 = (y) => y / size / (48 / scale) + ph.y;
 
+      const run = (x, y) => {
+        const u = u0(x), v = v0(y);
+        let n = 0.52 * this._tileNoise(u, v, 3)
+          + 0.3 * this._tileNoise(u * 3.1 + 0.7, v * 3.1 + 0.2, 3)
+          + 0.18 * this._tileNoise(u * 8.7 + 0.4, v * 8.7 + 0.9, 2);
+        const tint = this._tileNoise(u * 2 + 0.3, v * 2 + 0.6, 2);
+        let mult = 1 + n * (variation / 26) + grain * 0.02;
+        if (grime > 0) {
+          const blotch = Math.pow(Math.max(0, this._tileNoise(u * 1.7 + 3.1, v * 1.7 + 1.4, 3) * 0.5 + 0.5), 2.2);
+          const drip = Math.pow(Math.max(0, this._tileNoise(u * 6.0, v * 1.1 + 8.2, 3) * 0.5 + 0.5), 5.0);
+          const speck = Math.pow(Math.max(0, this._tileNoise(u * 34 + 5.0, v * 30 + 4.0, 1) * 0.5 + 0.5), 3.0);
+          mult *= 1 - (blotch * 0.42 + drip * 0.26 + speck * 0.18) * grime;
+        }
+        const warm = 1 + tint * 6 / 255;
+        let r = base[0] * mult * warm;
+        let g = base[1] * mult * (1 + tint * 0.8 / 255);
+        let b = base[2] * mult / warm;
+        if (desat > 0) {
+          const lu = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255;
+          const k = desat * 0.62;
+          r = (r / 255 + (lu - r / 255) * k) * 255;
+          g = (g / 255 + (lu - g / 255) * k) * 255;
+          b = (b / 255 + (lu - b / 255) * k) * 255;
+        }
+        return [Math.max(0, Math.min(255, r)), Math.max(0, Math.min(255, g)), Math.max(0, Math.min(255, b))];
+      };
+
       for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
-          const u = u0(x), v = v0(y);
-          let n = 0.52 * this._tileNoise(u, v, 3)
-            + 0.3 * this._tileNoise(u * 3.1 + 0.7, v * 3.1 + 0.2, 3)
-            + 0.18 * this._tileNoise(u * 8.7 + 0.4, v * 8.7 + 0.9, 2);
-          const tint = this._tileNoise(u * 2 + 0.3, v * 2 + 0.6, 2);
-          const mult = 1 + n * (variation / 26) + grain * 0.02;
-          const warm = 1 + tint * 6 / 255;
+          const col = run(x, y);
           const i = (y * size + x) * 4;
-          data[i] = Math.max(0, Math.min(255, base[0] * mult * warm));
-          data[i + 1] = Math.max(0, Math.min(255, base[1] * mult * (1 + tint * 0.8 / 255)));
-          data[i + 2] = Math.max(0, Math.min(255, base[2] * mult / warm));
+          data[i] = col[0];
+          data[i + 1] = col[1];
+          data[i + 2] = col[2];
           data[i + 3] = 255;
         }
       }
@@ -119,7 +142,7 @@ export class TextureFactory {
   }
 
   blendFrom(colorA, colorB, ops = {}) {
-    const key = 'blend_' + colorA + '_' + colorB + '_' + (ops.blendScale || 1) + '_' + (ops.granularity || 12);
+    const key = 'blend_' + colorA + '_' + colorB + '_' + (ops.blendScale || 1) + '_' + (ops.granularity || 12) + '_g' + (ops.grime || 0);
     return this.texture(key, () => {
       const size = 512;
       const c = this._canvas(size);
@@ -132,21 +155,37 @@ export class TextureFactory {
       const blendStrength = ops.blendStrength ?? 0.6;
       const grain = ops.granularity ?? 12;
       const scale = ops.scale ?? 16;
+      const grime = ops.grime ?? 0;
       const ph = this._phase(key);
       const u0 = (x) => x / size / (48 / scale) + ph.x;
       const v0 = (y) => y / size / (48 / scale) + ph.y;
 
+      const run = (x, y) => {
+        const u = u0(x), v = v0(y);
+        const m = (this._tileNoise(u * blendFreq * 64, v * blendFreq * 64, 3) * 0.5 + 0.5) * blendStrength
+          + 0.15 * (this._tileNoise(u * 5 + 9, v * 5 + 2, 2) * 0.5 + 0.5);
+        const k = Math.max(0, Math.min(1, m));
+        const g = this._tileNoise(u * 3 + 1.1, v * 3 + 4.2, 3);
+        let mult = 1 + g * grain * 0.02;
+        if (grime > 0) {
+          const blotch = Math.pow(Math.max(0, this._tileNoise(u * 1.6 + 7.3, v * 1.6 + 2.7, 3) * 0.5 + 0.5), 2.2);
+          const drip = Math.pow(Math.max(0, this._tileNoise(u * 5.5, v * 1.0 + 3.6, 3) * 0.5 + 0.5), 5.0);
+          mult *= 1 - (blotch * 0.4 + drip * 0.24) * grime;
+        }
+        return [
+          (a[0] + (b[0] - a[0]) * k + g * grain * 0.02) * mult,
+          (a[1] + (b[1] - a[1]) * k + g * grain * 0.02) * mult,
+          (a[2] + (b[2] - a[2]) * k + g * grain * 0.02) * mult
+        ];
+      };
+
       for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
-          const u = u0(x), v = v0(y);
-          const m = (this._tileNoise(u * blendFreq * 64, v * blendFreq * 64, 3) * 0.5 + 0.5) * blendStrength
-            + 0.15 * (this._tileNoise(u * 5 + 9, v * 5 + 2, 2) * 0.5 + 0.5);
-          const k = Math.max(0, Math.min(1, m));
-          const g = this._tileNoise(u * 3 + 1.1, v * 3 + 4.2, 3);
+          const col = run(x, y);
           const i = (y * size + x) * 4;
-          data[i] = Math.max(0, Math.min(255, a[0] + (b[0] - a[0]) * k + g * grain * 0.02));
-          data[i + 1] = Math.max(0, Math.min(255, a[1] + (b[1] - a[1]) * k + g * grain * 0.02));
-          data[i + 2] = Math.max(0, Math.min(255, a[2] + (b[2] - a[2]) * k + g * grain * 0.02));
+          data[i] = Math.max(0, Math.min(255, col[0]));
+          data[i + 1] = Math.max(0, Math.min(255, col[1]));
+          data[i + 2] = Math.max(0, Math.min(255, col[2]));
           data[i + 3] = 255;
         }
       }

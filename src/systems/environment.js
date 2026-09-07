@@ -82,7 +82,7 @@ export class WorldEnvironment {
       this.rng.range(this.skyPreset.sat[0], this.skyPreset.sat[1]),
       this.rng.range(this.skyPreset.lgt[0], this.skyPreset.lgt[1]) * 0.5
     );
-    this.sunColor = new THREE.Color().setHSL(this.rng.range(0.02, 0.12), this.rng.range(0.4, 0.7), 0.9);
+    this.sunColor = new THREE.Color().setHSL(this.rng.range(0.5, 0.62), this.rng.range(0.15, 0.35), 0.95);
 
     this.dayLength = this.rng.range(60, 600);
     this.visibility = this.rng.range(70, 420);
@@ -130,9 +130,10 @@ export class WorldEnvironment {
     scene.background = this.skyBase.clone();
     scene.fog = new THREE.FogExp2(this.skyBase.clone().lerp(new THREE.Color(0.6, 0.6, 0.6), 0.2), 0.012);
 
-    const hemi = new THREE.HemisphereLight(this.skyBase.clone(), 0x3a2618, this.rng.range(0.45, 0.95) * 0.55);
+    const hemi = new THREE.HemisphereLight(this.skyBase.clone(), new THREE.Color(0x1d2016), this.rng.range(0.45, 0.95) * 0.5);
     scene.add(hemi);
     this.hemi = hemi;
+    engine.renderer.toneMappingExposure = 0.85;
 
     const sun = new THREE.DirectionalLight(this.sunColor, 2.4 * 0.4);
     sun.castShadow = true;
@@ -257,9 +258,9 @@ export class WorldEnvironment {
       c.width = w;
       c.height = h;
       const ctx = c.getContext('2d');
-      const top = this.skyBase.clone().lerp(new THREE.Color(0.1, 0.12, 0.2), 0.3);
-      const hor = this.skyBase.clone().lerp(new THREE.Color(0.95, 0.9, 0.82), 0.25);
-      const gnd = this.skyBase.clone().multiplyScalar(0.4);
+      const top = this.skyBase.clone().lerp(new THREE.Color(0.1, 0.12, 0.2), 0.3).multiplyScalar(0.6);
+      const hor = this.skyBase.clone().lerp(new THREE.Color(0.95, 0.9, 0.82), 0.25).multiplyScalar(0.6);
+      const gnd = this.skyBase.clone().multiplyScalar(0.28);
       const grad = ctx.createLinearGradient(0, 0, 0, h);
       grad.addColorStop(0, 'rgb(' + Math.round(top.r * 255) + ',' + Math.round(top.g * 255) + ',' + Math.round(top.b * 255) + ')');
       grad.addColorStop(0.42, 'rgb(' + Math.round(hor.r * 255) + ',' + Math.round(hor.g * 255) + ',' + Math.round(hor.b * 255) + ')');
@@ -268,9 +269,9 @@ export class WorldEnvironment {
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
       const sunY = Math.round(h * 0.86);
-      const glow = ctx.createRadialGradient(w * 0.5, sunY, 1, w * 0.5, sunY, h * 0.55);
-      glow.addColorStop(0, 'rgba(255,240,190,0.9)');
-      glow.addColorStop(0.35, 'rgba(255,232,170,0.2)');
+      const glow = ctx.createRadialGradient(w * 0.5, sunY, 1, w * 0.5, sunY, h * 0.45);
+      glow.addColorStop(0, 'rgba(210,228,255,0.6)');
+      glow.addColorStop(0.35, 'rgba(190,214,255,0.15)');
       glow.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, w, h);
@@ -384,7 +385,7 @@ export class WorldEnvironment {
     if (this.sun) {
       const sunP = new THREE.Vector3(Math.cos(sunPhase) * 90, -18 + (sunY + 1) * 55, Math.sin(sunPhase) * 25);
       this.sun.position.copy(sunP);
-      this.sun.intensity = 0.15 + 2.1 * dayFactor * this.weather.skyDim;
+      this.sun.intensity = 0.12 + 1.5 * dayFactor * this.weather.skyDim;
       this.sunDir.copy(sunP).normalize();
     }
     if (this.hemi) {
@@ -405,7 +406,7 @@ export class WorldEnvironment {
       this.flashLamp.position.copy(playerPos).y += 60;
     }
 
-    const effSky = this._effectiveSkyColor();
+    const effSky = this._gasGrade(this._effectiveSkyColor());
     if (scene.fog) {
       scene.fog.color.lerp(effSky, 0.08);
       const density = 1.25 / this.visibility * (0.7 + this.weather.fog * 0.55);
@@ -458,7 +459,7 @@ export class WorldEnvironment {
     const u = m.uniforms;
     u.uSunDir.value.copy(this.sunDir);
     const nearHoriz = Math.max(0, 1 - Math.abs(this.sunDir.y));
-    const warm = this.sunColor.clone().lerp(new THREE.Color(1.0, 0.55, 0.28), nearHoriz * 0.7);
+    const warm = this.sunColor.clone().lerp(new THREE.Color(1.0, 0.72, 0.5), nearHoriz * 0.35);
     u.uSunColor.value.copy(warm);
     u.uSunIntensity.value = 0.5 + 2.4 * dayFactor * this.weather.skyDim;
     const k = this.weather.kind;
@@ -513,6 +514,15 @@ export class WorldEnvironment {
       c.lerp(new THREE.Color(0.6, 0.62, 0.66), 0.25);
     }
     return c;
+  }
+
+  _gasGrade(c) {
+    const g = c.clone();
+    g.r *= 0.58; g.g *= 0.6; g.b *= 0.66;
+    g.r += 0.012; g.b += 0.028;
+    const lu = g.r * 0.2126 + g.g * 0.7152 + g.b * 0.0722;
+    g.lerp(new THREE.Color(lu, lu, lu), 0.18);
+    return g;
   }
 
   _updateParticles(dt, playerPos) {
